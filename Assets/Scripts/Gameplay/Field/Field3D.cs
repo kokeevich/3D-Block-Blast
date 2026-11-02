@@ -6,7 +6,9 @@ public class Field3D : MonoBehaviour
 {
     public const int Size = 8;
 
-    [SerializeField] private float cellSize = 0.5f;
+    // GameFieldRoot находится внутри старого FBX с масштабом 0.5.
+    // Локальный шаг 1.0 поэтому соответствует мировому размеру блока 0.5.
+    [SerializeField] private float cellSize = 1f;
 
     public float CellSize => cellSize;
 

@@ -410,10 +410,15 @@ public class BalancedShapeSelector : MonoBehaviour
             return null;
         }
 
+        Quaternion shapeRotation = Quaternion.Euler(shapeData.eulerAngles);
+        Quaternion worldRotation = field != null
+            ? field.transform.rotation * shapeRotation
+            : shapeRotation;
+
         GameObject instance = Instantiate(
             shapeData.prefab,
             spawnPosition,
-            Quaternion.Euler(shapeData.eulerAngles));
+            worldRotation);
 
         if (activeFigureController != null)
         {
@@ -423,7 +428,7 @@ public class BalancedShapeSelector : MonoBehaviour
             if (shape != null && shape.GetNormalizedCells().Length > 0 && field != null)
             {
                 // Получаем клетки с учётом поворота
-                Vector3Int[] rotatedCells = shape.GetRotatedCells(instance.transform.rotation);
+                Vector3Int[] rotatedCells = shape.GetRotatedCells(shapeRotation);
                 if (!field.CanPlaceShape(startGridPos, rotatedCells))
                 {
                     if (!field.TryFindPlacement(rotatedCells, out startGridPos))

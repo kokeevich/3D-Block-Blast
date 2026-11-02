@@ -378,6 +378,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8cfacba45e1f6b24f9ef01c1479b3264, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  cellSize: 1
 --- !u!4 &257667734
 Transform:
   m_ObjectHideFlags: 0
@@ -407,7 +408,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   size: 8
   cellSize: 1
-  visible: 0
+  visible: 1
+  lineColor: {r: 0.35, g: 0.75, b: 1, a: 0.32}
 --- !u!114 &257667737
 MonoBehaviour:
   m_ObjectHideFlags: 0

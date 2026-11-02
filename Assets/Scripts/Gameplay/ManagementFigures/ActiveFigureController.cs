@@ -16,6 +16,7 @@ public class ActiveFigureController : MonoBehaviour
     private GameObject activeFigure;
     private FigureGridShape gridShape;
     private Vector3Int currentGridPosition;
+    private Quaternion figureLocalRotation = Quaternion.identity;
 
     // Кэш материалов для подсветки валидности
     private List<MeshRenderer> renderers = new List<MeshRenderer>();
@@ -41,6 +42,9 @@ public class ActiveFigureController : MonoBehaviour
         activeFigure = figure;
         gridShape = figure != null ? figure.GetComponent<FigureGridShape>() : null;
         currentGridPosition = startGridPos;
+        figureLocalRotation = figure != null && fieldTransform != null
+            ? Quaternion.Inverse(fieldTransform.rotation) * figure.transform.rotation
+            : Quaternion.identity;
 
         CacheRenderers();
         ResetRendererColors();
@@ -62,6 +66,7 @@ public class ActiveFigureController : MonoBehaviour
         renderers.Clear();
         originalColors.Clear();
         validityHighlighted = false;
+        figureLocalRotation = Quaternion.identity;
     }
 
     public void LockActiveFigure()
@@ -73,6 +78,7 @@ public class ActiveFigureController : MonoBehaviour
         renderers.Clear();
         originalColors.Clear();
         validityHighlighted = false;
+        figureLocalRotation = Quaternion.identity;
     }
 
     public void Move(MoveAxis axis, int direction)
@@ -104,7 +110,13 @@ public class ActiveFigureController : MonoBehaviour
     public Vector3Int[] GetRotatedCells()
     {
         if (activeFigure == null || gridShape == null) return null;
-        return gridShape.GetRotatedCells(activeFigure.transform.rotation);
+        return gridShape.GetRotatedCells(figureLocalRotation);
+    }
+
+    private void LateUpdate()
+    {
+        if (activeFigure != null)
+            UpdateWorldPosition();
     }
 
     /// <summary>
@@ -208,6 +220,7 @@ public class ActiveFigureController : MonoBehaviour
             shapePivot = fieldTransform.rotation * gridShape.pivotOffset;
 
         activeFigure.transform.position = worldGridPos - shapePivot;
+        activeFigure.transform.rotation = fieldTransform.rotation * figureLocalRotation;
     }
 
     public void SnapToNearestCell()

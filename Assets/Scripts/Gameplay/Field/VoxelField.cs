@@ -1,63 +1,114 @@
-﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// Лёгкая визуализация сетки поля. Старое поведение создавало 512 Cube-объектов,
+/// даже когда они были невидимы. Теперь вся сетка строится одним Mesh.
+/// </summary>
 public class VoxelField : MonoBehaviour
 {
-    public int size = 8;             // 8x8x8 поле
-    public float cellSize = 1f;      // размер одной клетки
-    public bool visible = true;       // можно выключать поле
+    [SerializeField] private int size = Field3D.Size;
+    [SerializeField] private float cellSize = 1f;
+    [SerializeField] private bool visible = true;
+    [SerializeField] private Color lineColor = new Color(0.35f, 0.75f, 1f, 0.32f);
 
-    private GameObject[,,] cells;
+    private Mesh gridMesh;
+    private MeshRenderer gridRenderer;
+    private Material runtimeMaterial;
 
-    void Start()
+    private void Start()
     {
-        GenerateField();
+        var field = GetComponent<Field3D>();
+        if (field != null)
+        {
+            size = Field3D.Size;
+            cellSize = field.CellSize;
+        }
+
+        HideLegacyFieldModel();
+        GenerateGrid();
         SetVisibility(visible);
     }
 
-    void GenerateField()
+    private void HideLegacyFieldModel()
     {
-        cells = new GameObject[size, size, size];
+        if (transform.parent == null) return;
 
-        // Смещение для центрирования
-        float offset = (size - 1) * cellSize * 0.5f;
-
-        // Создаём контейнер для кубов — он НЕ вращается, только передаёт локальную систему координат
-        GameObject container = new GameObject("VoxelFieldContainer");
-        container.transform.parent = transform; // родитель — GameFieldRoot
-        container.transform.localPosition = Vector3.zero;
-        container.transform.localRotation = Quaternion.identity; // важно: без поворота!
-        container.transform.localScale = Vector3.one;
-
-        for (int x = 0; x < size; x++)
+        var legacyRenderers = transform.parent.GetComponentsInChildren<Renderer>(true);
+        foreach (var renderer in legacyRenderers)
         {
-            for (int y = 0; y < size; y++)
-            {
-                for (int z = 0; z < size; z++)
-                {
-                    GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                    cube.transform.parent = container.transform; // 👈 теперь родитель — контейнер
-
-                    cube.transform.localScale = Vector3.one * cellSize;
-                    cube.transform.localPosition = new Vector3(
-                        x * cellSize - offset,
-                        y * cellSize - offset,
-                        z * cellSize - offset
-                    );
-
-                    cube.name = $"Cell_{x}_{y}_{z}";
-                    cells[x, y, z] = cube;
-                }
-            }
+            if (renderer != null && !renderer.transform.IsChildOf(transform))
+                renderer.enabled = false;
         }
+    }
+
+    private void GenerateGrid()
+    {
+        var container = new GameObject("GridVisualization");
+        container.transform.SetParent(transform, false);
+
+        var filter = container.AddComponent<MeshFilter>();
+        gridRenderer = container.AddComponent<MeshRenderer>();
+
+        float half = size * cellSize * 0.5f;
+        var vertices = new List<Vector3>((size + 1) * (size + 1) * 6);
+        var indices = new List<int>((size + 1) * (size + 1) * 6);
+
+        for (int a = 0; a <= size; a++)
+        for (int b = 0; b <= size; b++)
+        {
+            float p1 = -half + a * cellSize;
+            float p2 = -half + b * cellSize;
+
+            AddLine(vertices, indices,
+                new Vector3(-half, p1, p2), new Vector3(half, p1, p2));
+            AddLine(vertices, indices,
+                new Vector3(p1, -half, p2), new Vector3(p1, half, p2));
+            AddLine(vertices, indices,
+                new Vector3(p1, p2, -half), new Vector3(p1, p2, half));
+        }
+
+        gridMesh = new Mesh { name = "Grid8x8x8" };
+        gridMesh.SetVertices(vertices);
+        gridMesh.SetIndices(indices, MeshTopology.Lines, 0);
+        gridMesh.RecalculateBounds();
+        filter.sharedMesh = gridMesh;
+
+        Shader shader = Shader.Find("Sprites/Default");
+        if (shader == null) shader = Shader.Find("Unlit/Color");
+        if (shader == null) shader = Shader.Find("Standard");
+
+        runtimeMaterial = new Material(shader)
+        {
+            name = "Runtime Grid Material",
+            color = lineColor
+        };
+        gridRenderer.sharedMaterial = runtimeMaterial;
+    }
+
+    private static void AddLine(
+        List<Vector3> vertices,
+        List<int> indices,
+        Vector3 start,
+        Vector3 end)
+    {
+        int index = vertices.Count;
+        vertices.Add(start);
+        vertices.Add(end);
+        indices.Add(index);
+        indices.Add(index + 1);
     }
 
     public void SetVisibility(bool isVisible)
     {
-        foreach (var cube in cells)
-        {
-            cube.GetComponent<MeshRenderer>().enabled = isVisible;
-        }
+        visible = isVisible;
+        if (gridRenderer != null)
+            gridRenderer.enabled = visible;
+    }
+
+    private void OnDestroy()
+    {
+        if (gridMesh != null) Destroy(gridMesh);
+        if (runtimeMaterial != null) Destroy(runtimeMaterial);
     }
 }
