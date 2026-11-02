@@ -26,7 +26,7 @@ public class ActiveFigureController : MonoBehaviour
     public bool HasActiveFigure => activeFigure != null;
     public GameObject ActiveFigure => activeFigure;
     public FigureGridShape ActiveShape => gridShape;
-    public float CellSize => cellSize;
+    public float CellSize => field != null ? field.CellSize : cellSize;
     public Transform FieldTransform => fieldTransform;
 
     public void SetField(Field3D newField)
@@ -199,14 +199,9 @@ public class ActiveFigureController : MonoBehaviour
             return;
         }
 
-        // Точно такое же центрирование, как в Field3D.PlaceShape
-        float gridOffset = (Field3D.Size - 1) * cellSize * 0.5f;
-
-        Vector3 worldGridPos =
-            fieldTransform.position +
-            fieldTransform.right * (currentGridPosition.x * cellSize - gridOffset) +
-            fieldTransform.up * (currentGridPosition.y * cellSize - gridOffset) +
-            fieldTransform.forward * (currentGridPosition.z * cellSize - gridOffset);
+        Vector3 worldGridPos = field != null
+            ? field.GridToWorld(currentGridPosition)
+            : fieldTransform.TransformPoint((Vector3)currentGridPosition * cellSize);
 
         Vector3 shapePivot = Vector3.zero;
         if (gridShape != null)
@@ -228,12 +223,12 @@ public class ActiveFigureController : MonoBehaviour
             Quaternion.Inverse(fieldTransform.rotation) *
             (anchorWorld - fieldTransform.position);
 
-        Vector3 gridFloat = local / cellSize;
-
-        currentGridPosition = new Vector3Int(
-            Mathf.RoundToInt(gridFloat.x),
-            Mathf.RoundToInt(gridFloat.y),
-            Mathf.RoundToInt(gridFloat.z));
+        currentGridPosition = field != null
+            ? field.LocalToGrid(local)
+            : new Vector3Int(
+                Mathf.RoundToInt(local.x / cellSize),
+                Mathf.RoundToInt(local.y / cellSize),
+                Mathf.RoundToInt(local.z / cellSize));
 
         UpdateWorldPosition();
     }

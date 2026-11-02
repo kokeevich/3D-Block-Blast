@@ -82,7 +82,6 @@ public class ShapePlacer : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
         // LockActiveFigure сбрасывает состояние контроллера, поэтому все данные,
         // необходимые для размещения, нужно сохранить до блокировки.
         Vector3Int placementPosition = figureController.CurrentGridPosition;
-        float cellSize = figureController.CellSize;
 
         // Снимаем активную фигуру
         figureController.LockActiveFigure();
@@ -104,7 +103,6 @@ public class ShapePlacer : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
             rotatedCells,
             blockPrefab,
             blocksParent != null ? blocksParent : field.transform,
-            cellSize,
             blockColor);
 
         if (blocks.Count == 0)

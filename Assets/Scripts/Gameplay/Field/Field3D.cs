@@ -6,6 +6,10 @@ public class Field3D : MonoBehaviour
 {
     public const int Size = 8;
 
+    [SerializeField] private float cellSize = 0.5f;
+
+    public float CellSize => cellSize;
+
     public enum PlaneAxis
     {
         XY, // по Z (горизонтальная плоскость на высоте z)
@@ -102,7 +106,6 @@ public class Field3D : MonoBehaviour
         Vector3Int[] shapeCells,
         GameObject blockPrefab,
         Transform blocksParent,
-        float cellSize,
         Color color)
     {
         var created = new List<GameObject>(shapeCells.Length);
@@ -115,8 +118,6 @@ public class Field3D : MonoBehaviour
             var rend = blockPrefab.GetComponentInChildren<MeshRenderer>();
             if (rend != null) sharedMat = rend.sharedMaterial;
         }
-
-        float offset = (Size - 1) * cellSize * 0.5f;
 
         for (int i = 0; i < shapeCells.Length; i++)
         {
@@ -146,10 +147,7 @@ public class Field3D : MonoBehaviour
                 if (blocksParent != null) block.transform.SetParent(blocksParent, false);
             }
 
-            Vector3 local = new Vector3(
-                x * cellSize - offset,
-                y * cellSize - offset,
-                z * cellSize - offset);
+            Vector3 local = GridToLocal(new Vector3Int(x, y, z));
 
             block.transform.localPosition = local;
             block.transform.localRotation = Quaternion.identity;
@@ -282,15 +280,29 @@ public class Field3D : MonoBehaviour
 
     public Vector3Int WorldToGrid(Vector3 worldPosition)
     {
-        Vector3 local = transform.InverseTransformPoint(worldPosition);
+        return LocalToGrid(transform.InverseTransformPoint(worldPosition));
+    }
+
+    public Vector3Int LocalToGrid(Vector3 localPosition)
+    {
+        float offset = (Size - 1) * cellSize * 0.5f;
         return new Vector3Int(
-            Mathf.RoundToInt(local.x),
-            Mathf.RoundToInt(local.y),
-            Mathf.RoundToInt(local.z));
+            Mathf.RoundToInt((localPosition.x + offset) / cellSize),
+            Mathf.RoundToInt((localPosition.y + offset) / cellSize),
+            Mathf.RoundToInt((localPosition.z + offset) / cellSize));
+    }
+
+    public Vector3 GridToLocal(Vector3Int cell)
+    {
+        float offset = (Size - 1) * cellSize * 0.5f;
+        return new Vector3(
+            cell.x * cellSize - offset,
+            cell.y * cellSize - offset,
+            cell.z * cellSize - offset);
     }
 
     public Vector3 GridToWorld(Vector3Int cell)
     {
-        return transform.TransformPoint(cell);
+        return transform.TransformPoint(GridToLocal(cell));
     }
 }

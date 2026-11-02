@@ -36,7 +36,7 @@ public class BalancedShapeSelector : MonoBehaviour
         var data = assignedShapes[idx];
         if (data?.prefab == null) return false;
         var shape = data.prefab.GetComponent<FigureGridShape>();
-        if (shape == null || shape.cells == null) return false;
+        if (shape == null || shape.GetNormalizedCells().Length == 0) return false;
         Vector3Int[] rotated = shape.GetRotatedCells(Quaternion.Euler(data.eulerAngles));
         return field.CanPlaceAnywhere(rotated);
     }
@@ -225,9 +225,11 @@ public class BalancedShapeSelector : MonoBehaviour
             {
                 var p = prefabs[UnityEngine.Random.Range(0, prefabs.Length)];
                 var shape = p.GetComponent<FigureGridShape>();
-                if (shape == null || shape.cells == null) continue;
-                if (shape.cells.Length > freeCellCount) continue;
-                if (field.CanPlaceAnywhere(shape.cells)) return name;
+                if (shape == null) continue;
+                Vector3Int[] normalizedCells = shape.GetNormalizedCells();
+                if (normalizedCells.Length == 0) continue;
+                if (normalizedCells.Length > freeCellCount) continue;
+                if (field.CanPlaceAnywhere(normalizedCells)) return name;
             }
         }
         return null;
@@ -418,7 +420,7 @@ public class BalancedShapeSelector : MonoBehaviour
             // Стартовая позиция — если есть место, поставим по центру, иначе попробуем найти
             Vector3Int startGridPos = Vector3Int.zero;
             var shape = instance.GetComponent<FigureGridShape>();
-            if (shape != null && shape.cells != null && field != null)
+            if (shape != null && shape.GetNormalizedCells().Length > 0 && field != null)
             {
                 // Получаем клетки с учётом поворота
                 Vector3Int[] rotatedCells = shape.GetRotatedCells(instance.transform.rotation);
