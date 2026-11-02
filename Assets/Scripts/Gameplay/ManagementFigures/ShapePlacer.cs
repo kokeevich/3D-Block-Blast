@@ -66,6 +66,7 @@ public class ShapePlacer : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 
     public void TryPlaceActive()
     {
+        if (busyClearing) return;
         if (figureController == null || field == null) return;
         if (!figureController.HasActiveFigure) return;
         if (!figureController.CanPlaceAtCurrent()) return;
@@ -77,6 +78,11 @@ public class ShapePlacer : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
         // Получаем клетки с учётом поворота
         Vector3Int[] rotatedCells = figureController.GetRotatedCells();
         if (rotatedCells == null) return;
+
+        // LockActiveFigure сбрасывает состояние контроллера, поэтому все данные,
+        // необходимые для размещения, нужно сохранить до блокировки.
+        Vector3Int placementPosition = figureController.CurrentGridPosition;
+        float cellSize = figureController.CellSize;
 
         // Снимаем активную фигуру
         figureController.LockActiveFigure();
@@ -94,14 +100,22 @@ public class ShapePlacer : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 
         // Размещаем блоки на поле
         var blocks = field.PlaceShape(
-            figureController.CurrentGridPosition,
+            placementPosition,
             rotatedCells,
             blockPrefab,
             blocksParent != null ? blocksParent : field.transform,
-            figureController.CellSize,
+            cellSize,
             blockColor);
 
-        if (blocks.Count == 0) return;
+        if (blocks.Count == 0)
+        {
+            Destroy(figureGo);
+            return;
+        }
+
+        // На поле создаются отдельные постоянные блоки. Исходный объект был
+        // только управляемым предпросмотром и после установки больше не нужен.
+        Destroy(figureGo);
 
         // Анимация появления
         StartCoroutine(AnimateSpawn(blocks));

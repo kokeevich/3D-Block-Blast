@@ -46,6 +46,11 @@ public class GameManager : MonoBehaviour
             shapeSelector.OnNoValidPlacement += HandleGameOver;
         }
 
+        if (activeFigureController != null && field != null)
+        {
+            activeFigureController.SetField(field);
+        }
+
         if (shapePlacer != null)
         {
             if (field != null) shapePlacer.SetField(field);

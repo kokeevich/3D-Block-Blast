@@ -450,6 +450,8 @@ public class BalancedShapeSelector : MonoBehaviour
 
         while (elapsed < duration)
         {
+            if (obj == null) yield break;
+
             elapsed += Time.deltaTime;
             float t = elapsed / duration;
             t = Mathf.SmoothStep(0f, 1f, t);
@@ -457,6 +459,7 @@ public class BalancedShapeSelector : MonoBehaviour
             yield return null;
         }
 
-        obj.transform.localScale = originalScale;
+        if (obj != null)
+            obj.transform.localScale = originalScale;
     }
 }
