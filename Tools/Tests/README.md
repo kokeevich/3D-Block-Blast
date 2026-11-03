@@ -85,3 +85,17 @@ result. Unity's own EditMode attempt stopped at licensing before test execution.
 Existing scene component names/GUIDs are retained. `SwipeZoneFigure` and
 `GameInputBinder` remain as compatibility components; gesture interpretation
 is centralized in `FieldRotator` to prevent duplicate movement on release.
+
+### Offer click regression
+
+`OfferInteractionTests.VisibleOfferReceivesClickAndCreatesAnActiveFigure` enters
+Play Mode, loads the real Game scene, raycasts the visible first card, dispatches
+its click, checks the active figure/placement, and checks cancellation. Run this
+in Unity's EditMode Test Runner; it is excluded from standalone .NET because it
+needs Unity's player lifecycle and EventSystem. It has not run in the cloud
+without an activated Unity license.
+
+Regression cause: the previous layout moved the offer slots underneath the
+transparent `SwipeZoneFigure` Image, which was still a UI raycast target.
+The raw gesture handler does not need those Images to receive EventSystem hits.
+Both gesture Images now have raycastTarget disabled in the scene and at startup.

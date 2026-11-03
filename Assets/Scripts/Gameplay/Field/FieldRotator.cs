@@ -29,6 +29,10 @@ public class FieldRotator : MonoBehaviour
         game = FindObjectOfType<GameManager>();
         var zone = FindObjectOfType<SwipeZoneFigure>();
         figureZone = zone != null ? zone.GetComponent<RectTransform>() : null;
+        // Raw input owns gestures. Transparent UI regions must not consume
+        // EventSystem raycasts over the offer cards below them.
+        DisableGestureRaycast(swipeZone);
+        DisableGestureRaycast(figureZone);
         offerButtons = FindObjectsOfType<ShapeSpawnButton>();
         view = Camera.main;
         if (view != null)
@@ -36,6 +40,13 @@ public class FieldRotator : MonoBehaviour
             initialDistance = Vector3.Distance(view.transform.position, transform.position);
             initialOrtho = view.orthographicSize;
         }
+    }
+
+    private static void DisableGestureRaycast(RectTransform region)
+    {
+        if (region == null) return;
+        var graphic = region.GetComponent<UnityEngine.UI.Graphic>();
+        if (graphic != null) graphic.raycastTarget = false;
     }
 
     private bool Blocked => (placer != null && placer.IsResolving) || (game != null && game.IsGameOver);

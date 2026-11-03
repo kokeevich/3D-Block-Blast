@@ -1,7 +1,8 @@
 {
   "name": "BlockBlast.Model.Tests",
   "references": [
-    "BlockBlast.Model"
+    "BlockBlast.Model",
+    "UnityEngine.UI"
   ],
   "includePlatforms": [
     "Editor"
