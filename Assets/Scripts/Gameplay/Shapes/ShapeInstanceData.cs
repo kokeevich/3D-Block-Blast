@@ -1,11 +1,19 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 [System.Serializable]
 public class ShapeInstanceData
 {
     public GameObject prefab;
-    public Vector3 eulerAngles;
-    public string category; // ← добавлено
+    public string category;
+    [System.NonSerialized] public ShapeOffer offer;
+    [System.NonSerialized] public BoardModel.Cell[] baseCells;
 
-    public Quaternion GetRotation() => Quaternion.Euler(eulerAngles);
+    [System.NonSerialized] public System.Action onRotationChanged;
+
+    public Quaternion GetRotation()
+    {
+        var o = ShapeRules.Orientations[offer.Orientation];
+        return Quaternion.LookRotation(new Vector3(o.Forward.x, o.Forward.y, o.Forward.z),
+            new Vector3(o.Up.x, o.Up.y, o.Up.z));
+    }
 }

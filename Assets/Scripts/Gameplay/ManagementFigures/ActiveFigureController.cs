@@ -1,257 +1,153 @@
-﻿using System.Collections.Generic;
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class ActiveFigureController : MonoBehaviour
 {
-    [Header("Grid")]
     [SerializeField] private float cellSize = 0.5f;
     [SerializeField] private Transform fieldTransform;
     [SerializeField] private Field3D field;
-
-    [Header("Visuals")]
-    [SerializeField] private Color validColor = new Color(0.4f, 0.95f, 0.4f, 1f);
-    [SerializeField] private Color invalidColor = new Color(0.95f, 0.4f, 0.4f, 1f);
-    [SerializeField] private Color defaultColor = new Color(0.85f, 0.85f, 0.9f, 1f);
+    [SerializeField] private Color validColor = new Color(0.4f, 0.95f, 0.4f, 0.55f);
+    [SerializeField] private Color invalidColor = new Color(0.95f, 0.4f, 0.4f, 0.65f);
 
     private GameObject activeFigure;
     private FigureGridShape gridShape;
+    private ShapeInstanceData data;
     private Vector3Int currentGridPosition;
-    private Quaternion figureLocalRotation = Quaternion.identity;
-
-    // Кэш материалов для подсветки валидности
-    private List<MeshRenderer> renderers = new List<MeshRenderer>();
-    private List<Color> originalColors = new List<Color>();
-    private bool validityHighlighted = false;
-
+    private Transform ghost;
+    private Material ghostMaterial;
+    private readonly List<Transform> ghostCells = new List<Transform>();
+    private MaterialPropertyBlock colorBlock;
+    public PlacementFrame Frame { get; private set; }
     public Vector3Int CurrentGridPosition => currentGridPosition;
     public bool HasActiveFigure => activeFigure != null;
     public GameObject ActiveFigure => activeFigure;
     public FigureGridShape ActiveShape => gridShape;
     public float CellSize => field != null ? field.CellSize : cellSize;
     public Transform FieldTransform => fieldTransform;
+    public int Depth => Frame == null ? 0 : Frame.Depth(ToCell(currentGridPosition));
 
-    public void SetField(Field3D newField)
+    public void SetField(Field3D value)
     {
-        field = newField;
+        field = value;
+        fieldTransform = value != null ? value.transform : null;
     }
 
-    public void SetActiveFigure(GameObject figure, Vector3Int startGridPos)
+    public void SetActiveFigure(GameObject figure, Vector3Int start, ShapeInstanceData offerData)
     {
         ClearActiveFigure();
-
+        if (colorBlock == null) colorBlock = new MaterialPropertyBlock();
         activeFigure = figure;
-        gridShape = figure != null ? figure.GetComponent<FigureGridShape>() : null;
-        currentGridPosition = startGridPos;
-        figureLocalRotation = figure != null && fieldTransform != null
-            ? Quaternion.Inverse(fieldTransform.rotation) * figure.transform.rotation
-            : Quaternion.identity;
-
-        CacheRenderers();
-        ResetRendererColors();
-        UpdateWorldPosition();
-        SnapToNearestCell();
-        UpdateValidityHighlight();
-    }
-
-    public void ClearActiveFigure()
-    {
-        if (activeFigure != null)
+        gridShape = figure.GetComponent<FigureGridShape>();
+        data = offerData;
+        currentGridPosition = start;
+        var camera = Camera.main;
+        Vector3 toCamera = camera != null ? camera.transform.position - fieldTransform.position : -fieldTransform.forward;
+        Vector3 right = camera != null ? camera.transform.right : fieldTransform.right;
+        Vector3 up = camera != null ? camera.transform.up : fieldTransform.up;
+        Frame = new PlacementFrame(Direction(fieldTransform.InverseTransformDirection(toCamera)),
+            Direction(fieldTransform.InverseTransformDirection(right)), Direction(fieldTransform.InverseTransformDirection(up)));
+        // Keep the source object for shape/color data; render exact target cells instead.
+        foreach (var renderer in figure.GetComponentsInChildren<Renderer>(true)) renderer.enabled = false;
+        ghost = new GameObject("PlacementGhost").transform;
+        ghost.SetParent(fieldTransform, false);
+        Shader shader = Resources.Load<Shader>("PlacementGhost");
+        if (shader == null) shader = Shader.Find("Unlit/Color");
+        if (shader == null) shader = Shader.Find("Sprites/Default");
+        ghostMaterial = new Material(shader) { name = "Placement Ghost" };
+        foreach (var cell in data.offer.Cells)
         {
-            Destroy(activeFigure);
+            var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            cube.transform.SetParent(ghost, false);
+            Destroy(cube.GetComponent<Collider>());
+            cube.GetComponent<Renderer>().sharedMaterial = ghostMaterial;
+            ghostCells.Add(cube.transform);
         }
-
-        activeFigure = null;
-        gridShape = null;
-        currentGridPosition = Vector3Int.zero;
-        renderers.Clear();
-        originalColors.Clear();
-        validityHighlighted = false;
-        figureLocalRotation = Quaternion.identity;
+        RefreshGhost();
     }
 
-    public void LockActiveFigure()
+    private static PlacementFrame.Direction Direction(Vector3 v) => new PlacementFrame.Direction(v.x, v.y, v.z);
+    private static BoardModel.Cell ToCell(Vector3Int c) => new BoardModel.Cell(c.x, c.y, c.z);
+    private static Vector3Int ToVector(BoardModel.Cell c) => new Vector3Int(c.x, c.y, c.z);
+    public Vector3Int[] GetRotatedCells() => data == null ? null : Array.ConvertAll(data.offer.Cells, ToVector);
+
+    public bool CanPlaceAtCurrent() => HasActiveFigure && field != null &&
+        field.CanPlaceShape(currentGridPosition, GetRotatedCells());
+
+    public void SetGridPosition(Vector3Int position)
     {
-        // Не уничтожаем — оставляем как "лок на экране", очищаем ссылки
-        activeFigure = null;
-        gridShape = null;
-        currentGridPosition = Vector3Int.zero;
-        renderers.Clear();
-        originalColors.Clear();
-        validityHighlighted = false;
-        figureLocalRotation = Quaternion.identity;
+        if (!HasActiveFigure) return;
+        currentGridPosition = new Vector3Int(Mathf.Clamp(position.x, 0, 7), Mathf.Clamp(position.y, 0, 7), Mathf.Clamp(position.z, 0, 7));
+        RefreshGhost();
+    }
+
+    public void SetDepth(int depth)
+    {
+        if (Frame != null && HasActiveFigure) SetGridPosition(ToVector(Frame.AtDepth(ToCell(currentGridPosition), depth)));
     }
 
     public void Move(MoveAxis axis, int direction)
     {
-        if (activeFigure == null)
-            return;
-
-        Vector3Int offset = axis switch
-        {
-            MoveAxis.X => Vector3Int.right * direction,
-            MoveAxis.Y => Vector3Int.up * direction,
-            MoveAxis.Z => Vector3Int.forward * direction,
-            _ => Vector3Int.zero
-        };
-
-        Vector3Int targetPos = currentGridPosition + offset;
-
-        if (!CanMoveTo(targetPos))
-            return;
-
-        currentGridPosition = targetPos;
-        UpdateWorldPosition();
-        UpdateValidityHighlight();
+        var delta = axis == MoveAxis.X ? Vector3Int.right : axis == MoveAxis.Y ? Vector3Int.up : Vector3Int.forward;
+        SetGridPosition(currentGridPosition + delta * direction);
     }
 
-    /// <summary>
-    /// Возвращает клетки фигуры, повёрнутые в соответствии с текущим поворотом объекта.
-    /// </summary>
-    public Vector3Int[] GetRotatedCells()
+    public void MoveOnScreen(int horizontal, int vertical)
     {
-        if (activeFigure == null || gridShape == null) return null;
-        return gridShape.GetRotatedCells(figureLocalRotation);
+        if (Frame != null) SetGridPosition(ToVector(Frame.Move(ToCell(currentGridPosition), horizontal, vertical)));
     }
 
-    private void LateUpdate()
+    public void Rotate(int localAxis)
     {
-        if (activeFigure != null)
-            UpdateWorldPosition();
+        if (!HasActiveFigure) return;
+        data.offer = new ShapeOffer(data.offer.CatalogIndex, data.baseCells,
+            ShapeRules.RotateOrientation(data.offer.Orientation, localAxis));
+        data.onRotationChanged?.Invoke();
+        RefreshGhost();
     }
 
-    /// <summary>
-    /// Проверяет, можно ли поставить фигуру в текущей позиции на поле.
-    /// </summary>
-    public bool CanPlaceAtCurrent()
-    {
-        if (activeFigure == null || gridShape == null || field == null) return false;
-        return field.CanPlaceShape(currentGridPosition, GetRotatedCells());
-    }
-
-    /// <summary>
-    /// Пытается переместить фигуру в любую свободную позицию.
-    /// Возвращает true, если нашлась.
-    /// </summary>
     public bool TryFindAnyPlacement()
     {
-        if (activeFigure == null || gridShape == null || field == null) return false;
-        if (field.TryFindPlacement(GetRotatedCells(), out var pos))
-        {
-            currentGridPosition = pos;
-            UpdateWorldPosition();
-            UpdateValidityHighlight();
-            return true;
-        }
-        return false;
+        if (!HasActiveFigure || !field.TryFindPlacement(GetRotatedCells(), out var pos)) return false;
+        SetGridPosition(pos);
+        return true;
     }
 
-    private void UpdateValidityHighlight()
+    private void LateUpdate() { if (HasActiveFigure) RefreshGhost(); }
+    private void RefreshGhost()
     {
-        if (activeFigure == null) return;
-        bool canPlace = CanPlaceAtCurrent();
-        ApplyColor(canPlace ? validColor : invalidColor);
-        validityHighlighted = canPlace;
-    }
-
-    private void ApplyColor(Color c)
-    {
-        for (int i = 0; i < renderers.Count; i++)
+        if (ghost == null || data == null) return;
+        var cells = GetRotatedCells();
+        bool valid = CanPlaceAtCurrent();
+        Color color = valid ? validColor : invalidColor;
+        color.a = valid ? 0.55f : 0.65f;
+        colorBlock.SetColor("_Color", color);
+        colorBlock.SetColor("_BaseColor", color);
+        for (int i = 0; i < cells.Length; i++)
         {
-            var r = renderers[i];
-            if (r == null) continue;
-            // Используем MaterialPropertyBlock, чтобы не плодить инстансы
-            var block = new MaterialPropertyBlock();
-            r.GetPropertyBlock(block);
-            // Стандартный шейдер использует _BaseColor (URP) или _Color (Built-in)
-            block.SetColor("_BaseColor", c);
-            block.SetColor("_Color", c);
-            r.SetPropertyBlock(block);
+            ghostCells[i].localPosition = field.GridToLocal(currentGridPosition + cells[i]);
+            ghostCells[i].localScale = Vector3.one * field.CellSize * 0.92f;
+            ghostCells[i].GetComponent<Renderer>().SetPropertyBlock(colorBlock);
         }
     }
 
-    private void ResetRendererColors()
+    private void ReleaseGhost()
     {
-        for (int i = 0; i < renderers.Count; i++)
-        {
-            var r = renderers[i];
-            if (r == null) continue;
-            var block = new MaterialPropertyBlock();
-            r.GetPropertyBlock(block);
-            block.SetColor("_BaseColor", originalColors[i]);
-            block.SetColor("_Color", originalColors[i]);
-            r.SetPropertyBlock(block);
-        }
+        if (ghost != null) { ghost.gameObject.SetActive(false); Destroy(ghost.gameObject); }
+        if (ghostMaterial != null) Destroy(ghostMaterial);
+        ghost = null; ghostMaterial = null; ghostCells.Clear(); Frame = null;
     }
-
-    private void CacheRenderers()
+    public void ClearActiveFigure()
     {
-        renderers.Clear();
-        originalColors.Clear();
-        if (activeFigure == null) return;
-
-        var rends = activeFigure.GetComponentsInChildren<MeshRenderer>(true);
-        foreach (var r in rends)
-        {
-            renderers.Add(r);
-            // Получаем оригинальный цвет из инстанса материала, если он есть, иначе из sharedMaterial
-            Color c = defaultColor;
-            if (r.material != null && r.material.HasProperty("_BaseColor"))
-                c = r.material.GetColor("_BaseColor");
-            else if (r.material != null && r.material.HasProperty("_Color"))
-                c = r.material.GetColor("_Color");
-            originalColors.Add(c);
-        }
+        if (activeFigure != null) Destroy(activeFigure);
+        LockActiveFigure();
     }
-
-    private void UpdateWorldPosition()
+    public void LockActiveFigure()
     {
-        if (fieldTransform == null)
-        {
-            Debug.LogError("FieldTransform is not assigned!");
-            return;
-        }
-
-        Vector3 worldGridPos = field != null
-            ? field.GridToWorld(currentGridPosition)
-            : fieldTransform.TransformPoint((Vector3)currentGridPosition * cellSize);
-
-        Vector3 shapePivot = Vector3.zero;
-        if (gridShape != null)
-            shapePivot = fieldTransform.rotation * gridShape.pivotOffset;
-
-        activeFigure.transform.position = worldGridPos - shapePivot;
-        activeFigure.transform.rotation = fieldTransform.rotation * figureLocalRotation;
+        ReleaseGhost();
+        activeFigure = null; gridShape = null; data = null;
+        currentGridPosition = Vector3Int.zero;
     }
-
-    public void SnapToNearestCell()
-    {
-        if (activeFigure == null || gridShape == null)
-            return;
-
-        Vector3 anchorWorld =
-            activeFigure.transform.position +
-            fieldTransform.rotation * gridShape.pivotOffset;
-
-        Vector3 local =
-            Quaternion.Inverse(fieldTransform.rotation) *
-            (anchorWorld - fieldTransform.position);
-
-        currentGridPosition = field != null
-            ? field.LocalToGrid(local)
-            : new Vector3Int(
-                Mathf.RoundToInt(local.x / cellSize),
-                Mathf.RoundToInt(local.y / cellSize),
-                Mathf.RoundToInt(local.z / cellSize));
-
-        UpdateWorldPosition();
-    }
-
-    private bool CanMoveTo(Vector3Int gridPos)
-    {
-        if (activeFigure == null || gridShape == null) return false;
-
-        if (field == null) return true; // fallback на старую логику
-
-        return field.CanPlaceShape(gridPos, GetRotatedCells());
-    }
+    public void SnapToNearestCell() { RefreshGhost(); }
+    private void OnDestroy() { ClearActiveFigure(); }
 }

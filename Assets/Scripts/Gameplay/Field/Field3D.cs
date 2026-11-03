@@ -11,6 +11,7 @@ public class Field3D : MonoBehaviour
     [SerializeField] private float cellSize = 1f;
 
     public float CellSize => cellSize;
+    public BoardModel Model => board;
 
     public enum PlaneAxis
     {

@@ -58,6 +58,10 @@ public class GameManager : MonoBehaviour
             shapePlacer.OnShapePlaced += HandleShapePlaced;
         }
 
+        var controls = GetComponent<MobilePlacementControls>();
+        if (controls == null) controls = gameObject.AddComponent<MobilePlacementControls>();
+        controls.Initialize(activeFigureController, shapePlacer, this);
+
         // Привязка кнопок спавна
         AutoFindSpawnButtons();
         BindSpawnButtons();
@@ -146,6 +150,19 @@ public class GameManager : MonoBehaviour
     {
         if (scoreText != null) scoreText.text = score.ToString();
         if (bestScoreText != null) bestScoreText.text = bestScore.ToString();
+    }
+
+    public void CancelSelection()
+    {
+        if (!CanSelectShape) return;
+        if (activeFigureController != null) activeFigureController.ClearActiveFigure();
+        lastSpawnedButtonIndex = -1;
+    }
+
+    private void OnDestroy()
+    {
+        if (shapeSelector != null) shapeSelector.OnNoValidPlacement -= HandleGameOver;
+        if (shapePlacer != null) shapePlacer.OnShapePlaced -= HandleShapePlaced;
     }
 
     public void RestartGame()

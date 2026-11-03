@@ -10,15 +10,10 @@ public class ShapePlacer : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     [SerializeField] private PlaneClearer planeClearer;
     [SerializeField] private Transform blocksParent;
     [SerializeField] private GameObject blockPrefab;
-    [SerializeField] private float placeTapTime = 0.25f;
-    [SerializeField] private float placeTapMaxDistance = 25f;
 
     public delegate void ShapePlacedHandler(int cellsCount, BoardModel.ClearResult clearResult);
     public event ShapePlacedHandler OnShapePlaced;
 
-    private Vector2 downPos;
-    private float downTime;
-    private bool tracking;
     private bool busyClearing;
 
     public bool IsResolving => busyClearing;
@@ -42,29 +37,8 @@ public class ShapePlacer : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     public void SetFigureController(ActiveFigureController c) { figureController = c; }
     public void SetPlaneClearer(PlaneClearer c) { planeClearer = c; }
 
-    public void OnPointerDown(PointerEventData eventData)
-    {
-        if (busyClearing) return;
-        downPos = eventData.position;
-        downTime = Time.unscaledTime;
-        tracking = true;
-    }
-
-    public void OnPointerUp(PointerEventData eventData)
-    {
-        if (!tracking) return;
-        tracking = false;
-        if (busyClearing) return;
-
-        Vector2 delta = eventData.position - downPos;
-        float distance = delta.magnitude;
-        float elapsed = Time.unscaledTime - downTime;
-
-        if (distance > placeTapMaxDistance) return;
-        if (elapsed > placeTapTime) return;
-
-        TryPlaceActive();
-    }
+    public void OnPointerDown(PointerEventData eventData) { }
+    public void OnPointerUp(PointerEventData eventData) { }
 
     public void TryPlaceActive()
     {

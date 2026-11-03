@@ -74,9 +74,7 @@ public class ShapeSpawnButton : MonoBehaviour
             }
         }
 
-        // Сообщим GameManager, что сейчас спавним эту кнопку
-        if (gameManager != null) gameManager.NotifyShapeSpawned(buttonIndex);
-
-        shapeSelector.SpawnRealShape(buttonIndex, spawnPosition);
+        var instance = shapeSelector.SpawnRealShape(buttonIndex, spawnPosition);
+        if (instance != null && gameManager != null) gameManager.NotifyShapeSpawned(buttonIndex);
     }
 }
