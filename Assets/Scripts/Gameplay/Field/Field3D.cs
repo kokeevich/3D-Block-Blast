@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class Field3D : MonoBehaviour
 {
-    public const int Size = 8;
+    public const int Size = BoardModel.Size;
 
     // GameFieldRoot находится внутри старого FBX с масштабом 0.5.
     // Локальный шаг 1.0 поэтому соответствует мировому размеру блока 0.5.
@@ -31,24 +31,13 @@ public class Field3D : MonoBehaviour
     // Каждая клетка хранит либо null (пусто), либо ссылку на трансформ блока.
     private Transform[,,] cells = new Transform[Size, Size, Size];
 
+    private readonly BoardModel board = new BoardModel();
+
     public event Action<Plane> OnPlaneCleared;
 
-    public bool IsInside(int x, int y, int z)
-    {
-        return x >= 0 && x < Size &&
-               y >= 0 && y < Size &&
-               z >= 0 && z < Size;
-    }
-
-    public bool IsFree(int x, int y, int z)
-    {
-        return IsInside(x, y, z) && cells[x, y, z] == null;
-    }
-
-    public bool IsOccupied(int x, int y, int z)
-    {
-        return IsInside(x, y, z) && cells[x, y, z] != null;
-    }
+    public bool IsInside(int x, int y, int z) => board.IsInside(x, y, z);
+    public bool IsFree(int x, int y, int z) => board.IsFree(x, y, z);
+    public bool IsOccupied(int x, int y, int z) => board.IsOccupied(x, y, z);
 
     public Transform GetCell(int x, int y, int z)
     {
@@ -58,25 +47,19 @@ public class Field3D : MonoBehaviour
 
     public void SetCell(int x, int y, int z, Transform block)
     {
-        if (IsInside(x, y, z))
-            cells[x, y, z] = block;
+        if (!IsInside(x, y, z)) return;
+        cells[x, y, z] = block;
+        board.SetOccupied(x, y, z, block != null);
     }
 
     public void ClearCell(int x, int y, int z)
     {
-        if (IsInside(x, y, z))
-            cells[x, y, z] = null;
+        if (!IsInside(x, y, z)) return;
+        cells[x, y, z] = null;
+        board.ClearCell(x, y, z);
     }
 
-    public int CountFreeCells()
-    {
-        int count = 0;
-        for (int x = 0; x < Size; x++)
-            for (int y = 0; y < Size; y++)
-                for (int z = 0; z < Size; z++)
-                    if (cells[x, y, z] == null) count++;
-        return count;
-    }
+    public int CountFreeCells() => board.CountFreeCells();
 
     /// <summary>
     /// Проверяет, можно ли разместить набор клеток (в локальных координатах) с указанной опорной точкой.
@@ -85,19 +68,17 @@ public class Field3D : MonoBehaviour
     /// </summary>
     public bool CanPlaceShape(Vector3Int anchorPos, Vector3Int[] shapeCells)
     {
-        if (shapeCells == null || shapeCells.Length == 0) return false;
-
-        for (int i = 0; i < shapeCells.Length; i++)
-        {
-            int x = anchorPos.x + shapeCells[i].x;
-            int y = anchorPos.y + shapeCells[i].y;
-            int z = anchorPos.z + shapeCells[i].z;
-
-            if (!IsInside(x, y, z)) return false;
-            if (cells[x, y, z] != null) return false;
-        }
-        return true;
+        return board.CanPlaceShape(ToCell(anchorPos), ToCells(shapeCells));
     }
+
+    private static BoardModel.Cell ToCell(Vector3Int c) => new BoardModel.Cell(c.x, c.y, c.z);
+    private static BoardModel.Cell[] ToCells(Vector3Int[] shape)
+    {
+        if (shape == null) return null;
+        return Array.ConvertAll(shape, ToCell);
+    }
+    private static BoardModel.Plane ToPlane(Plane p) =>
+        new BoardModel.Plane((BoardModel.PlaneAxis)p.axis, p.index);
 
     /// <summary>
     /// Размещает фигуру на поле, привязывая к cellSize-выровненным локальным координатам.
@@ -110,8 +91,8 @@ public class Field3D : MonoBehaviour
         Transform blocksParent,
         Color color)
     {
-        var created = new List<GameObject>(shapeCells.Length);
-        if (shapeCells == null || shapeCells.Length == 0) return created;
+        var created = new List<GameObject>();
+        if (!CanPlaceShape(anchorPos, shapeCells)) return created;
 
         // Один материал/цвет на всю фигуру
         Material sharedMat = null;
@@ -126,15 +107,6 @@ public class Field3D : MonoBehaviour
             int x = anchorPos.x + shapeCells[i].x;
             int y = anchorPos.y + shapeCells[i].y;
             int z = anchorPos.z + shapeCells[i].z;
-
-            if (!IsInside(x, y, z) || cells[x, y, z] != null)
-            {
-                // Откатываем то, что успели создать
-                for (int j = 0; j < created.Count; j++)
-                    if (created[j] != null) Destroy(created[j]);
-                created.Clear();
-                return created;
-            }
 
             GameObject block;
             if (blockPrefab != null)
@@ -172,7 +144,7 @@ public class Field3D : MonoBehaviour
                 }
             }
 
-            cells[x, y, z] = block.transform;
+            SetCell(x, y, z, block.transform);
             created.Add(block);
         }
 
@@ -184,6 +156,9 @@ public class Field3D : MonoBehaviour
     /// </summary>
     public void ClearPlane(Plane plane)
     {
+        if (plane.index < 0 || plane.index >= Size ||
+            plane.axis < PlaneAxis.XY || plane.axis > PlaneAxis.YZ) return;
+        board.ClearPlane(ToPlane(plane));
         for (int a = 0; a < Size; a++)
         for (int b = 0; b < Size; b++)
         {
@@ -206,19 +181,7 @@ public class Field3D : MonoBehaviour
     /// </summary>
     public bool IsPlaneFull(Plane plane)
     {
-        for (int a = 0; a < Size; a++)
-        for (int b = 0; b < Size; b++)
-        {
-            int x = 0, y = 0, z = 0;
-            switch (plane.axis)
-            {
-                case PlaneAxis.XY: x = a; y = b; z = plane.index; break;
-                case PlaneAxis.XZ: x = a; y = plane.index; z = b; break;
-                case PlaneAxis.YZ: x = plane.index; y = a; z = b; break;
-            }
-            if (cells[x, y, z] == null) return false;
-        }
-        return true;
+        return board.IsPlaneFull(ToPlane(plane));
     }
 
     /// <summary>
@@ -226,14 +189,7 @@ public class Field3D : MonoBehaviour
     /// </summary>
     public List<Plane> GetCompletedPlanes()
     {
-        var result = new List<Plane>();
-        for (int i = 0; i < Size; i++)
-        {
-            if (IsPlaneFull(new Plane(PlaneAxis.XY, i))) result.Add(new Plane(PlaneAxis.XY, i));
-            if (IsPlaneFull(new Plane(PlaneAxis.XZ, i))) result.Add(new Plane(PlaneAxis.XZ, i));
-            if (IsPlaneFull(new Plane(PlaneAxis.YZ, i))) result.Add(new Plane(PlaneAxis.YZ, i));
-        }
-        return result;
+        return board.GetCompletedPlanes().ConvertAll(p => new Plane((PlaneAxis)p.axis, p.index));
     }
 
     /// <summary>
@@ -242,21 +198,9 @@ public class Field3D : MonoBehaviour
     /// </summary>
     public bool TryFindPlacement(Vector3Int[] shapeCells, out Vector3Int anchorPos)
     {
-        anchorPos = Vector3Int.zero;
-        if (shapeCells == null || shapeCells.Length == 0) return false;
-
-        for (int x = 0; x < Size; x++)
-            for (int y = 0; y < Size; y++)
-                for (int z = 0; z < Size; z++)
-                {
-                    var pos = new Vector3Int(x, y, z);
-                    if (CanPlaceShape(pos, shapeCells))
-                    {
-                        anchorPos = pos;
-                        return true;
-                    }
-                }
-        return false;
+        bool found = board.TryFindPlacement(ToCells(shapeCells), out var anchor);
+        anchorPos = new Vector3Int(anchor.x, anchor.y, anchor.z);
+        return found;
     }
 
     /// <summary>
@@ -272,12 +216,7 @@ public class Field3D : MonoBehaviour
     /// </summary>
     public List<Vector3Int> GetFreeCells()
     {
-        var list = new List<Vector3Int>();
-        for (int x = 0; x < Size; x++)
-            for (int y = 0; y < Size; y++)
-                for (int z = 0; z < Size; z++)
-                    if (cells[x, y, z] == null) list.Add(new Vector3Int(x, y, z));
-        return list;
+        return board.GetFreeCells().ConvertAll(c => new Vector3Int(c.x, c.y, c.z));
     }
 
     public Vector3Int WorldToGrid(Vector3 worldPosition)
