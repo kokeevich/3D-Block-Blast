@@ -5,12 +5,12 @@ using UnityEngine.UI;
 /// <summary>The game HUD owns explicit, raycastable offer cards and placement actions.</summary>
 public class MobilePlacementControls : MonoBehaviour
 {
-    private static readonly Color Background = new Color(0.955f,0.975f,0.945f);
-    private static readonly Color PanelColor = new Color(1f,1f,0.99f);
-    private static readonly Color Muted = new Color(0.35f,0.45f,0.45f);
-    private static readonly Color Accent = new Color(0.06f,0.45f,0.35f);
-    private static readonly Color Ink = new Color(0.16f,0.25f,0.27f);
-    private static readonly Color SoftButton = new Color(0.88f,0.94f,0.92f);
+    private static readonly Color Background = new Color(0.68f,0.76f,0.73f);
+    private static readonly Color PanelColor = new Color(0.80f,0.86f,0.82f);
+    private static readonly Color Muted = new Color(0.25f,0.35f,0.34f);
+    private static readonly Color Accent = new Color(0.04f,0.36f,0.28f);
+    private static readonly Color Ink = new Color(0.12f,0.21f,0.22f);
+    private static readonly Color SoftButton = new Color(0.71f,0.80f,0.76f);
     private ActiveFigureController figure;
     private ShapePlacer placer;
     private GameManager game;
@@ -138,7 +138,7 @@ public class MobilePlacementControls : MonoBehaviour
 
     private void BuildGameOver()
     {
-        gameOver = Box("GameOverOverlay",safeRoot,Vector2.zero,Vector2.one,new Color(0.89f,0.95f,0.91f,0.96f)).gameObject;
+        gameOver = Box("GameOverOverlay",safeRoot,Vector2.zero,Vector2.one,new Color(0.66f,0.75f,0.70f,0.96f)).gameObject;
         gameOver.GetComponent<Image>().raycastTarget = true;
         var card = Box("GameOverCard",gameOver.transform,new Vector2(0.08f,0.30f),new Vector2(0.92f,0.69f),PanelColor);
         Label("Title",card,"Хорошая партия!",new Vector2(0.04f,0.72f),new Vector2(0.96f,0.94f),48,Ink,TextAnchor.MiddleCenter,true);
@@ -203,8 +203,8 @@ public class MobilePlacementControls : MonoBehaviour
             if (redraw) offerFits[i] = offer != null && selector.CanPlaceShapeAnywhere(i);
             cards[i].interactable = offer != null && offerFits[i] && game.CanSelectShape;
             cardBorders[i].effectColor = selected ? Accent : Color.clear;
-            cardBackgrounds[i].color = offer == null ? new Color(0.94f,0.96f,0.94f) :
-                Color.Lerp(Color.white,offer.color,selected ? 0.25f : 0.10f);
+            cardBackgrounds[i].color = offer == null ? new Color(0.75f,0.81f,0.77f) :
+                Color.Lerp(new Color(0.84f,0.89f,0.85f),offer.color,selected ? 0.25f : 0.10f);
             cardLabels[i].text = offer == null ? "Готово" : selected ? "Выбрано" : !offerFits[i] ? "Нет места" : offer.baseCells.Length+" блок.";
             cardLabels[i].color = selected ? Accent : Muted;
             if (redraw)
@@ -254,7 +254,7 @@ public class MobilePlacementControls : MonoBehaviour
         view.transform.position = field.transform.position-rotation*Vector3.forward*distance-
             rotation*Vector3.up*(2*distance*tan*(centerY-0.5f))-
             rotation*Vector3.right*(2*distance*tan*view.aspect*(centerX-0.5f));
-        RenderSettings.ambientLight = new Color(0.72f,0.78f,0.74f);
+        RenderSettings.ambientLight = new Color(0.62f,0.69f,0.65f);
         var rotator = field.GetComponent<FieldRotator>();
         if (rotator != null) rotator.RefreshZoomLimits();
     }
