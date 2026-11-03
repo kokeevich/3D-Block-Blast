@@ -1,0 +1,27 @@
+agent,seed,moves,lines,occupied,game_over
+sampled-random,0,31,3,222,True
+sampled-random,1,37,3,287,True
+sampled-random,2,40,8,274,True
+sampled-random,3,32,2,233,True
+sampled-random,4,35,7,243,True
+sampled-random,5,38,9,247,True
+sampled-random,6,41,9,275,True
+sampled-random,7,40,10,258,True
+sampled-random,8,35,6,249,True
+sampled-random,9,38,10,254,True
+sampled-random,10,41,10,269,True
+sampled-random,11,44,10,288,True
+# sampled-random: median=38, range=31..44, ended=12/12
+clear-seeking,0,47,25,250,True
+clear-seeking,1,49,26,257,True
+clear-seeking,2,53,29,250,True
+clear-seeking,3,47,22,254,True
+clear-seeking,4,70,55,268,True
+clear-seeking,5,47,17,284,True
+clear-seeking,6,65,42,280,True
+clear-seeking,7,50,25,279,True
+clear-seeking,8,44,20,235,True
+clear-seeking,9,56,35,254,True
+clear-seeking,10,53,30,245,True
+clear-seeking,11,50,24,249,True
+# clear-seeking: median=50, range=44..70, ended=12/12

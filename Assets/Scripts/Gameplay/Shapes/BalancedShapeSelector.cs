@@ -7,12 +7,13 @@ public class BalancedShapeSelector : MonoBehaviour
 {
     [SerializeField] private ActiveFigureController activeFigureController;
     [SerializeField] private Field3D field;
-    public ShapeCategory[] categories;
     public Transform[] spawnButtons;
 
     private readonly List<ShapeInstanceData> catalog = new List<ShapeInstanceData>();
     private ShapeInstanceData[] assignedShapes;
     private bool[] used;
+    private readonly System.Random random = new System.Random();
+    public int PlacedShapes { get; private set; }
     public bool ShowLegacyPreviews { get; set; } = true;
     public event Action OnOfferChanged;
     public event Action OnShapesAllUsed;
@@ -28,21 +29,12 @@ public class BalancedShapeSelector : MonoBehaviour
 
     private void Awake()
     {
-        if (categories == null || categories.Length == 0)
-            categories = new[] { new ShapeCategory { name = "Small" },
-                new ShapeCategory { name = "Medium" }, new ShapeCategory { name = "Large" } };
-        foreach (var category in categories)
+        for (int i=0;i<BalanceRules.Catalog.Count;i++)
         {
-            category.prefabs = Resources.LoadAll<GameObject>("UI/Prefabs/" + category.name);
-            foreach (var prefab in category.prefabs)
-            {
-                var shape = prefab.GetComponent<FigureGridShape>();
-                if (shape == null) continue;
-                var cells = Array.ConvertAll(shape.GetNormalizedCells(), c => new BoardModel.Cell(c.x, c.y, c.z));
-                if (cells.Length == 0) continue;
-                catalog.Add(new ShapeInstanceData { prefab = prefab, category = category.name,
-                    offer = new ShapeOffer(catalog.Count, cells, 0), baseCells = cells });
-            }
+            var piece=BalanceRules.Catalog[i];
+            var cells=piece.Cells;
+            catalog.Add(new ShapeInstanceData { shapeName=piece.Name,category="Challenge",
+                offer=new ShapeOffer(i,cells,0),baseCells=cells });
         }
     }
 
@@ -58,8 +50,8 @@ public class BalancedShapeSelector : MonoBehaviour
     private ShapeInstanceData FromOffer(ShapeOffer offer)
     {
         var source = catalog[offer.CatalogIndex];
-        return new ShapeInstanceData { prefab = source.prefab, category = source.category,
-            baseCells = source.baseCells, offer = offer };
+        return new ShapeInstanceData { shapeName=source.shapeName,category=source.category,
+            baseCells=source.baseCells,offer=offer };
     }
 
     public bool CanPlaceShapeAnywhere(int i) => IsShapeAvailable(i) && field != null &&
@@ -76,27 +68,12 @@ public class BalancedShapeSelector : MonoBehaviour
     public void GenerateThreeShapes(int freeCellCount)
     {
         int count = Mathf.Min(3, spawnButtons?.Length ?? 0);
-        if (count == 0 || catalog.Count == 0)
-        { Debug.LogError("No spawn slots or valid shape prefabs configured."); return; }
-        var offers = new List<ShapeOffer>();
-        for (int i = 0; i < count; i++)
-        {
-            // Weight the actual prefab, then keep that exact prefab and rotation.
-            var candidates = catalog.FindAll(d => d.baseCells.Length <= freeCellCount);
-            if (candidates.Count == 0) candidates.AddRange(catalog);
-            float total = 0;
-            foreach (var c in candidates) total += Weight(c.category);
-            float choice = UnityEngine.Random.value * total;
-            var selected = candidates[candidates.Count - 1];
-            foreach (var c in candidates)
-            { choice -= Weight(c.category); if (choice <= 0) { selected = c; break; } }
-            var offer = new ShapeOffer(selected.offer.CatalogIndex, selected.baseCells,
-                UnityEngine.Random.Range(0, ShapeRules.Orientations.Count));
-            if (field != null && offer.TryFit(field.Model, out var fitted, out _)) offer = fitted;
-            offers.Add(offer);
-        }
-        if (field != null)
-            OfferRules.EnsurePlayable(field.Model, offers, catalog.ConvertAll(d => d.offer));
+        if (count!=3 || catalog.Count==0)
+        { Debug.LogError("Three offer slots and a valid gameplay catalog are required."); return; }
+        // Keep the legacy signature, but low free-cell counts no longer bias
+        // the draw towards tiny pieces or reduce the current difficulty.
+        if (field==null) { Debug.LogError("Cannot generate offers without the board."); return; }
+        var offers=BalanceRules.GenerateOffers(field.Model,PlacedShapes,random);
         assignedShapes = offers.ConvertAll(FromOffer).ToArray();
         used = new bool[count];
         for (int i = 0; i < count; i++)
@@ -113,17 +90,11 @@ public class BalancedShapeSelector : MonoBehaviour
     public static Color OfferColor(int index) => index % 3 == 0 ? new Color(0.12f,0.68f,0.57f) :
         index % 3 == 1 ? new Color(0.55f,0.43f,0.88f) : new Color(1f,0.61f,0.28f);
 
-    private float Weight(string category)
-    {
-        foreach (var c in categories)
-            if (c.name == category) return Mathf.Max(0.01f, c.baseWeight) / Mathf.Max(1, c.prefabs.Length);
-        return 1;
-    }
-
     public bool UseShape(int index)
     {
         if (!IsShapeAvailable(index)) return false;
         used[index] = true;
+        PlacedShapes++;
         if (spawnButtons[index] != null)
             foreach (Transform child in spawnButtons[index]) Destroy(child.gameObject);
         bool allUsed = Array.TrueForAll(used, value => value);
@@ -148,9 +119,22 @@ public class BalancedShapeSelector : MonoBehaviour
         // If the board changed, display and spawn the same newly fitting orientation.
         data.offer = fitted;
         RefreshPreview(index);
-        var instance = Instantiate(data.prefab, spawnPosition, field.transform.rotation * data.GetRotation());
+        var instance=CreateShapeObject(data);
+        instance.transform.SetPositionAndRotation(spawnPosition,field.transform.rotation*data.GetRotation());
+        instance.SetActive(true);
         activeFigureController.SetField(field);
         activeFigureController.SetActiveFigure(instance, new Vector3Int(anchor.x, anchor.y, anchor.z), data);
+        return instance;
+    }
+
+    private static GameObject CreateShapeObject(ShapeInstanceData data)
+    {
+        var instance=new GameObject(data.shapeName ?? "Figure");
+        instance.SetActive(false);
+        // Assign geometry before Awake so the runtime mesh, ghost, rules and
+        // card all derive from the very same cell array.
+        var shape=instance.AddComponent<FigureGridShape>();
+        shape.cells=Array.ConvertAll(data.baseCells,c => new Vector3Int(c.x,c.y,c.z));
         return instance;
     }
 
@@ -159,12 +143,14 @@ public class BalancedShapeSelector : MonoBehaviour
         OnOfferChanged?.Invoke();
         if (!ShowLegacyPreviews) return;
         var data = assignedShapes[i];
-        if (data?.prefab == null || spawnButtons[i] == null) return;
+        if (data == null || spawnButtons[i] == null) return;
 
         foreach (Transform child in spawnButtons[i])
             Destroy(child.gameObject);
 
-        GameObject preview = Instantiate(data.prefab, spawnButtons[i]);
+        GameObject preview=CreateShapeObject(data);
+        preview.transform.SetParent(spawnButtons[i],false);
+        preview.SetActive(true);
         preview.transform.localPosition = Vector3.zero;
         preview.transform.localRotation = data.GetRotation();
 

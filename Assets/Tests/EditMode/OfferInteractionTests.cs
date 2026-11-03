@@ -60,6 +60,51 @@ public class OfferInteractionTests
         Assert.IsNotNull(selectorType.GetMethod("GetShape").Invoke(selector,new object[] { 0 }));
         yield return new ExitPlayMode();
     }
+    [UnityTest]
+    public IEnumerator QuarterTurnSnapsToNinetyDegreesAndBlocksSelectionDuringAnimation()
+    {
+        yield return new EnterPlayMode();
+        yield return SceneManager.LoadSceneAsync("Game");
+        yield return null; yield return null;
+        var type=Type.GetType("FieldRotator, Assembly-CSharp",true);
+        var rotator=(Component)UnityEngine.Object.FindObjectOfType(type);
+        var managerType=Type.GetType("GameManager, Assembly-CSharp",true);
+        var manager=UnityEngine.Object.FindObjectOfType(managerType);
+        Quaternion start=rotator.transform.rotation;
+        Vector2 point=Camera.main.WorldToScreenPoint(rotator.transform.position);
+        type.GetMethod("Begin",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).Invoke(rotator,new object[] { point });
+        type.GetMethod("End",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).Invoke(rotator,new object[] { point+Vector2.right*100 });
+        Assert.IsTrue((bool)type.GetProperty("IsRotating").GetValue(rotator));
+        Assert.IsFalse((bool)managerType.GetMethod("TrySelectOffer").Invoke(manager,new object[] { 0 }));
+        float deadline=Time.realtimeSinceStartup+2;
+        while ((bool)type.GetProperty("IsRotating").GetValue(rotator) && Time.realtimeSinceStartup<deadline) yield return null;
+        Assert.IsFalse((bool)type.GetProperty("IsRotating").GetValue(rotator));
+        Assert.AreEqual(90,Quaternion.Angle(start,rotator.transform.rotation),0.01f);
+        yield return new ExitPlayMode();
+    }
+
+    [UnityTest]
+    public IEnumerator BoardWithNoFittingChallengeOfferShowsGameOver()
+    {
+        yield return new EnterPlayMode();
+        yield return SceneManager.LoadSceneAsync("Game");
+        yield return null; yield return null;
+        var fieldType=Type.GetType("Field3D, Assembly-CSharp",true);
+        var field=UnityEngine.Object.FindObjectOfType(fieldType);
+        var board=(BoardModel)fieldType.GetProperty("Model").GetValue(field);
+        for (int x=0;x<8;x++) for (int y=0;y<8;y++) for (int z=0;z<8;z++) board.SetOccupied(x,y,z,true);
+        for (int x=0;x<8;x+=2) for (int y=0;y<8;y+=2) for (int z=0;z<8;z+=2) board.ClearCell(x,y,z);
+        var selectorType=Type.GetType("BalancedShapeSelector, Assembly-CSharp",true);
+        var selector=UnityEngine.Object.FindObjectOfType(selectorType);
+        selectorType.GetMethod("GenerateThreeShapes").Invoke(selector,new object[] { board.CountFreeCells() });
+        yield return null;
+        var managerType=Type.GetType("GameManager, Assembly-CSharp",true);
+        var manager=UnityEngine.Object.FindObjectOfType(managerType);
+        Assert.IsTrue((bool)managerType.GetProperty("IsGameOver").GetValue(manager));
+        Assert.IsNotNull(GameObject.Find("GameOverOverlay"));
+        yield return new ExitPlayMode();
+    }
+
     private static void ClickVisibleButton(Button button)
     {
         Canvas.ForceUpdateCanvases();

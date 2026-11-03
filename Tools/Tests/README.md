@@ -14,7 +14,7 @@ In the current cloud instance the SDK is installed outside the checkout:
 /workspace/tools/dotnet/dotnet test Tools/Tests/BoardModel.Tests.csproj
 ```
 
-46 cases cover occupancy, non-origin placement, boundaries, overlap rejection
+65 cases cover occupancy, non-origin placement, boundaries, overlap rejection
 without partial writes, invalid shapes, full/incomplete planes on all axes,
 intersecting plane clearing, and placement availability on a full board.
 Additional cases cover full lines on each axis, incomplete lines, parallel and
@@ -59,7 +59,7 @@ result. Unity's own EditMode attempt stopped at licensing before test execution.
 1. Open `Assets/Scenes/Game.unity`. The bottom control panel should appear
    automatically, with all three offers visible above it; no Inspector wiring
    is required. Check portrait mode and the target phone's safe area.
-2. Before selection, drag the cube freely in any direction. On a phone, pinch
+2. Before selection, swipe to turn the cube by 90 degrees around an axis. On a phone, pinch
    to zoom; in the Editor, use the mouse wheel over the game gesture regions.
    Releasing one finger after pinch must not start rotation or placement.
 3. Choose an offer. Its card illustration and target ghost should have the same shape
@@ -78,7 +78,7 @@ result. Unity's own EditMode attempt stopped at licensing before test execution.
 7. While a spawn/line-clear animation runs, try selecting another offer,
    dragging, rotating and confirming again: the input must remain locked.
 8. Use all three offers: a fresh set must contain a playable concrete offer
-   whenever any catalog shape can fit in any of its 24 rotations. For remaining
+   whenever any catalog shape eligible at the current difficulty can fit in any of its 24 rotations. For remaining
    offers, Game Over must only occur when all of their allowed rotations fail;
    catalog shapes that were not offered do not postpone Game Over.
 
@@ -117,9 +117,9 @@ area. The active card receives an accent outline. Verify color continuity from
 card to placed blocks, score gain feedback, and the new Restart overlay at Game
 Over. Browsing hides placement-only actions instead of showing a disabled row.
 The board now displays 12 edges, a quiet floor guide and the active layer grid.
-Try all eight layers and both rotation buttons after freely rotating the cube.
+Try all eight layers and both rotation buttons after turning the cube around both axes.
 
-Standalone model tests: 46 passed. Runtime and Unity integration-test sources
+Standalone model tests: 65 passed. Runtime and Unity integration-test sources
 compile against the actual Unity 2022.3.62f3 assemblies (including its matching
 UGUI and test-runner references). Scene/UI interaction tests remain unrun in the
 cloud because the editor has no activated license. Compilation does not verify
@@ -140,3 +140,24 @@ three coordinates, and caps enlargement of single-cell figures. These tests
 compile against Unity's actual assemblies but remain unrun without an Editor
 license. Check tall and wide thumbnails on the phone for clipping, face order,
 consistent scale, label separation and selected-card contrast.
+
+
+### Axial rotation and progressive balance
+
+`BalanceAndTurnTests` covers swipe thresholds/directions, quarter-turn inverses,
+four-turn identity, stage boundaries, distinct offers, geometry connectivity,
+all cube rotations, deterministic seeded generation, and Game Over with isolated
+free cells. It also checks that the late-game fallback cannot reintroduce retired
+tiny pieces. All 65 standalone cases pass.
+
+Additional Unity tests in `OfferInteractionTests` check a 90-degree turn and
+selection lock during its animation, plus the real Game Over event/overlay path
+on a fragmented board. They compile with the editor/test-runner APIs but have
+not run in the cloud without a license. Verify horizontal/vertical swipe signs,
+short-tap rejection, repeated turns returning to the same pose, pinch/mouse-wheel
+zoom, and placement after each snapped orientation in Unity. Rotations occur on
+release; dragging an active figure still moves its ghost instead of the board.
+
+The exact gameplay catalog and balance simulations are documented in
+`../Balance/README.md`. Test random and careful human play before treating the
+sampled agent move counts as a target session length.

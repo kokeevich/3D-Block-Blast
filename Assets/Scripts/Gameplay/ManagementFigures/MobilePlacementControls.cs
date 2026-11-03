@@ -86,15 +86,15 @@ public class MobilePlacementControls : MonoBehaviour
         recordText = Label("Record",record,"0",new Vector2(0,0.04f),new Vector2(1,0.62f),38,Accent,TextAnchor.MiddleCenter,true);
         gainText = Label("ScoreGain",hud,"",new Vector2(0.3f,0.14f),new Vector2(0.65f,0.6f),34,Accent,TextAnchor.MiddleLeft,true);
         modeText = Label("Mode",safeRoot,"Выберите фигуру",new Vector2(0.1f,0.815f),new Vector2(0.9f,0.85f),32,Accent);
-        hint = Label("Hint",safeRoot,"Вращайте куб одним пальцем",new Vector2(0.06f,0.775f),new Vector2(0.94f,0.813f),36,Muted);
+        hint = Label("Hint",safeRoot,"Свайпните, чтобы повернуть куб на 90°",new Vector2(0.06f,0.775f),new Vector2(0.94f,0.813f),36,Muted);
     }
 
     private void BuildTray()
     {
         tray = Box("OfferTray",safeRoot,Vector2.zero,new Vector2(1,0),PanelColor,new Vector2(-48,700),new Vector2(0,20));
         tray.pivot = new Vector2(0.5f,0);
-        Label("TrayCaption",tray,"ВАШИ ФИГУРЫ",new Vector2(0.03f,0.91f),new Vector2(0.65f,0.99f),30,Muted,TextAnchor.MiddleLeft,true);
-        setText = Label("SetCount",tray,"3 / 3",new Vector2(0.75f,0.91f),new Vector2(0.97f,0.99f),30,Muted,TextAnchor.MiddleRight);
+        Label("TrayCaption",tray,"ВАШИ ФИГУРЫ",new Vector2(0.03f,0.91f),new Vector2(0.48f,0.99f),30,Muted,TextAnchor.MiddleLeft,true);
+        setText = Label("SetCount",tray,"3 / 3",new Vector2(0.48f,0.91f),new Vector2(0.97f,0.99f),26,Muted,TextAnchor.MiddleRight);
         for (int i = 0; i < 3; i++)
         {
             int index = i;
@@ -113,7 +113,7 @@ public class MobilePlacementControls : MonoBehaviour
         browseHelp = Rect("BrowseHelp",tray,new Vector2(0.04f,0.03f),new Vector2(0.96f,0.46f)).gameObject;
         Label("Instruction",browseHelp.transform,"Выберите фигуру и найдите ей место",new Vector2(0,0.55f),Vector2.one,40,Ink);
         Label("Rule",browseHelp.transform,"Соберите 8 блоков в линию, чтобы её очистить",new Vector2(0,0.24f),new Vector2(1,0.6f),34,Muted);
-        Label("Gestures",browseHelp.transform,"Один палец — вращение   ·   Два — масштаб",Vector2.zero,new Vector2(1,0.3f),30,Muted);
+        Label("Gestures",browseHelp.transform,"Свайп — поворот на 90°   ·   Два пальца — масштаб",Vector2.zero,new Vector2(1,0.3f),30,Muted);
         placementActions = Rect("PlacementActions",tray,Vector2.zero,new Vector2(1,0.53f)).gameObject;
         var actions = placementActions.transform;
         Label("DepthCaption",actions,"ГЛУБИНА",new Vector2(0.03f,0.82f),new Vector2(0.5f,1),28,Muted,TextAnchor.MiddleLeft);
@@ -175,7 +175,7 @@ public class MobilePlacementControls : MonoBehaviour
         modeText.text = game.IsGameOver ? "Спасибо за игру!" : placer.IsResolving ? "Отличный ход!" :
             !figure.HasActiveFigure ? "Выберите фигуру" : figure.CanPlaceAtCurrent() ? "Отличное место!" : "Попробуем другое место";
         modeText.color = figure.HasActiveFigure && !figure.CanPlaceAtCurrent() ? new Color(0.78f,0.26f,0.20f) : Accent;
-        hint.text = placer.IsResolving ? "" : !figure.HasActiveFigure ? "Вращайте куб одним пальцем" :
+        hint.text = placer.IsResolving ? "" : !figure.HasActiveFigure ? "Свайпните, чтобы повернуть куб на 90°" :
             figure.CanPlaceAtCurrent() ? "Двигайте фигуру • меняйте глубину" : "Сдвиньте фигуру или смените глубину";
         RefreshOffers();
         displayedScore = Mathf.MoveTowards(displayedScore,game.Score,Mathf.Max(30,Mathf.Abs(game.Score-displayedScore)*8)*Time.unscaledDeltaTime);
@@ -213,7 +213,7 @@ public class MobilePlacementControls : MonoBehaviour
                 thumbnails[i].SetShape(offer?.offer.Cells,offer == null ? Color.clear : offerFits[i] ? offer.color : new Color(Muted.r,Muted.g,Muted.b,0.4f));
             }
         }
-        setText.text = remaining+" / 3";
+        setText.text = remaining+" / 3 · "+BalanceRules.StageName(selector.PlacedShapes);
     }
 
     private void ConfigureView()

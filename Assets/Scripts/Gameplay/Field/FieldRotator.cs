@@ -1,10 +1,16 @@
 using UnityEngine;
 
-/// <summary>One gesture owner for orbit, camera-relative placement and pinch zoom.</summary>
+/// <summary>Axis-aligned quarter turns, camera-relative placement and pinch zoom.</summary>
 public class FieldRotator : MonoBehaviour
 {
     public RectTransform swipeZone;
-    [SerializeField] private float orbitDegreesPerScreen = 180f;
+    [SerializeField] private float animationTime = 0.22f;
+    [SerializeField] private float minSwipeScreenPercent = 0.03f;
+    private Vector2 swipeStart;
+    private int boardOrientation;
+    private Quaternion rotationStart,rotationTarget;
+    private float rotationTime;
+    public bool IsRotating { get; private set; }
     private ActiveFigureController figure;
     private ShapePlacer placer;
     private MobilePlacementControls controls;
@@ -14,7 +20,6 @@ public class FieldRotator : MonoBehaviour
     private ShapeSpawnButton[] offerButtons;
     private bool dragging, suppressUntilReleased, pinching;
     private int fingerId;
-    private Vector2 lastPosition;
     private float lastPinch, initialDistance, initialOrtho;
     private Plane dragPlane;
     private Vector3 dragStart;
@@ -35,6 +40,13 @@ public class FieldRotator : MonoBehaviour
         DisableGestureRaycast(figureZone);
         offerButtons = FindObjectsOfType<ShapeSpawnButton>();
         view = Camera.main;
+        float best=-1;
+        for (int i=0;i<ShapeRules.Orientations.Count;i++)
+        {
+            float dot=Mathf.Abs(Quaternion.Dot(transform.rotation,GridRotation(i)));
+            if (dot>best) { best=dot; boardOrientation=i; }
+        }
+        transform.rotation=GridRotation(boardOrientation);
         if (view != null)
         {
             initialDistance = Vector3.Distance(view.transform.position, transform.position);
@@ -68,6 +80,13 @@ public class FieldRotator : MonoBehaviour
 
     private void Update()
     {
+        if (IsRotating)
+        {
+            rotationTime+=Time.unscaledDeltaTime;
+            float progress=Mathf.Clamp01(rotationTime/Mathf.Max(0.01f,animationTime));
+            transform.rotation=Quaternion.Slerp(rotationStart,rotationTarget,Mathf.SmoothStep(0,1,progress));
+            if (progress>=1) { transform.rotation=rotationTarget; IsRotating=false; }
+        }
         if (controls == null) controls = FindObjectOfType<MobilePlacementControls>();
         if (view == null || Blocked) { dragging = false; pinching = false; return; }
         if (Input.touchCount >= 2)
@@ -87,18 +106,20 @@ public class FieldRotator : MonoBehaviour
             if (Input.touchCount == 0 && !Input.GetMouseButton(0)) suppressUntilReleased = false;
             return;
         }
+        if (IsRotating) { dragging=false; return; }
         if (Input.touchCount == 1)
         {
             var touch = Input.GetTouch(0);
             if (touch.phase == TouchPhase.Began) { fingerId = touch.fingerId; Begin(touch.position); }
             else if (touch.fingerId == fingerId && touch.phase == TouchPhase.Moved) Drag(touch.position);
-            else if (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled) dragging = false;
+            else if (touch.phase==TouchPhase.Ended && touch.fingerId==fingerId) End(touch.position);
+            else if (touch.phase==TouchPhase.Canceled) dragging=false;
             return;
         }
         Vector2 mouse = Input.mousePosition;
         if (Input.GetMouseButtonDown(0)) Begin(mouse);
         else if (Input.GetMouseButton(0)) Drag(mouse);
-        if (Input.GetMouseButtonUp(0)) dragging = false;
+        if (Input.GetMouseButtonUp(0)) End(mouse);
         if (InZone(mouse) && Mathf.Abs(Input.mouseScrollDelta.y) > 0)
             Zoom(Input.mouseScrollDelta.y * 0.04f);
     }
@@ -107,7 +128,7 @@ public class FieldRotator : MonoBehaviour
     {
         dragging = InZone(position);
         if (!dragging) return;
-        lastPosition = position;
+        swipeStart=position;
         draggingFigure = figure != null && figure.HasActiveFigure;
         if (!draggingFigure) return;
         anchorStart = figure.CurrentGridPosition;
@@ -125,15 +146,7 @@ public class FieldRotator : MonoBehaviour
         if (!dragging) return;
         // Selection/cancellation during a pointer gesture cannot change its meaning.
         if (draggingFigure != (figure != null && figure.HasActiveFigure)) { dragging = false; return; }
-        Vector2 delta = position - lastPosition;
-        lastPosition = position;
-        if (!draggingFigure)
-        {
-            float scale = orbitDegreesPerScreen / Mathf.Max(1, Screen.height);
-            transform.rotation = Quaternion.AngleAxis(-delta.x * scale, view.transform.up) *
-                Quaternion.AngleAxis(delta.y * scale, view.transform.right) * transform.rotation;
-            return;
-        }
+        if (!draggingFigure) return; // one turn is chosen on release, never a free orbit
         var ray = view.ScreenPointToRay(position);
         if (!dragPlane.Raycast(ray, out float enter)) return;
         Vector3 localDelta = transform.InverseTransformVector(ray.GetPoint(enter) - dragStart) / figure.CellSize;
@@ -142,6 +155,26 @@ public class FieldRotator : MonoBehaviour
         else if (figure.Frame.DepthAxis == 1) offset.y = 0;
         else offset.z = 0;
         figure.SetGridPosition(anchorStart + offset);
+    }
+
+    private static Quaternion GridRotation(int index)
+    {
+        var o=ShapeRules.Orientations[index];
+        return Quaternion.LookRotation(new Vector3(o.Forward.x,o.Forward.y,o.Forward.z),
+            new Vector3(o.Up.x,o.Up.y,o.Up.z));
+    }
+    private void End(Vector2 position)
+    {
+        bool turn=dragging && !draggingFigure && !Blocked && !IsRotating &&
+            figure!=null && !figure.HasActiveFigure;
+        dragging=false;
+        if (!turn) return;
+        Vector2 delta=position-swipeStart;
+        if (!BoardTurnRules.TryGetTurn(delta.x,delta.y,Mathf.Max(16,Screen.height*minSwipeScreenPercent),out int axis,out int direction)) return;
+        rotationStart=transform.rotation;
+        boardOrientation=BoardTurnRules.Apply(boardOrientation,axis,direction);
+        rotationTarget=GridRotation(boardOrientation);
+        rotationTime=0; IsRotating=true;
     }
 
     public void RefreshZoomLimits()

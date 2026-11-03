@@ -23,6 +23,7 @@ public class GameManager : MonoBehaviour
     [SerializeField] private Text gameOverScoreText;
     [SerializeField] private Button restartButton;
 
+    private FieldRotator fieldRotator;
     private int score;
     private int bestScore;
     private bool isGameOver;
@@ -34,6 +35,7 @@ public class GameManager : MonoBehaviour
         bestScore = PlayerPrefs.GetInt(BEST_SCORE_KEY, 0);
 
         if (field == null) field = FindObjectOfType<Field3D>();
+        if (field != null) fieldRotator=field.GetComponent<FieldRotator>();
         if (activeFigureController == null) activeFigureController = FindObjectOfType<ActiveFigureController>();
         if (shapeSelector == null) shapeSelector = FindObjectOfType<BalancedShapeSelector>();
         if (shapePlacer == null) shapePlacer = FindObjectOfType<ShapePlacer>();
@@ -189,5 +191,6 @@ public class GameManager : MonoBehaviour
     public int Score => score;
     public int BestScore => bestScore;
     public bool IsGameOver => isGameOver;
-    public bool CanSelectShape => !isGameOver && (shapePlacer == null || !shapePlacer.IsResolving);
+    public bool CanSelectShape => !isGameOver && (shapePlacer == null || !shapePlacer.IsResolving) &&
+        (fieldRotator==null || !fieldRotator.IsRotating);
 }

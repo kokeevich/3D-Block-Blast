@@ -3,7 +3,7 @@ using UnityEngine;
 [System.Serializable]
 public class ShapeInstanceData
 {
-    public GameObject prefab;
+    public string shapeName;
     public string category;
     public Color color = Color.white;
     [System.NonSerialized] public ShapeOffer offer;
