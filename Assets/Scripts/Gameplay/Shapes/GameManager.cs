@@ -93,10 +93,10 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    public void HandleShapePlaced(int cellsCount, int planesCleared, int comboBonus)
+    public void HandleShapePlaced(int cellsCount, BoardModel.ClearResult clearResult)
     {
-        // Очки: 1 за блок + 10 за каждую очищенную плоскость + комбо-бонус
-        int gained = cellsCount * cellsPerBlock + planesCleared * 10 + comboBonus;
+        // Placement + lines + simultaneous-line combo + rare full-plane bonus.
+        int gained = clearResult.Score(cellsCount, cellsPerBlock);
         score += gained;
         UpdateScoreUI();
 
@@ -156,4 +156,5 @@ public class GameManager : MonoBehaviour
     public int Score => score;
     public int BestScore => bestScore;
     public bool IsGameOver => isGameOver;
+    public bool CanSelectShape => !isGameOver && (shapePlacer == null || !shapePlacer.IsResolving);
 }

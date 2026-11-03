@@ -32,6 +32,8 @@ public class ShapeSpawnButton : MonoBehaviour
         if (gameManager == null)
             gameManager = FindObjectOfType<GameManager>();
 
+        if (gameManager != null && !gameManager.CanSelectShape) return;
+
         if (!shapeSelector.IsShapeAvailable(buttonIndex))
         {
             Debug.Log("ShapeSpawnButton: фигура уже использована или недоступна.");

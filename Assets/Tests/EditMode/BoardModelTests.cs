@@ -113,4 +113,96 @@ public class BoardModelTests
         Assert.IsFalse(board.IsPlaneFull(new Plane((Axis)99, 0)));
         Assert.AreEqual(511, board.CountFreeCells());
     }
+    [TestCase(0)] [TestCase(1)] [TestCase(2)]
+    public void FullLineClearsOnEveryAxis(int axis)
+    {
+        for (int t = 0; t < 8; t++)
+            board.SetOccupied(axis == 0 ? t : 2, axis == 1 ? t : 3, axis == 2 ? t : 4, true);
+        board.SetOccupied(7, 7, 7, true);
+        var result = board.GetCompletedLines();
+        Assert.AreEqual(1, result.LinesCleared);
+        Assert.AreEqual(8, result.Cells.Count);
+        Assert.AreEqual(0, result.PlanesCompleted);
+        Assert.AreEqual(13, result.Score(3));
+        board.ClearLines(result);
+        Assert.AreEqual(511, board.CountFreeCells());
+        Assert.IsTrue(board.IsOccupied(7, 7, 7));
+        Assert.AreEqual(0, board.GetCompletedLines().LinesCleared);
+    }
+
+    [Test] public void SevenCellsDoNotClear()
+    {
+        for (int x = 0; x < 7; x++) board.SetOccupied(x, 2, 3, true);
+        var result = board.GetCompletedLines();
+        Assert.AreEqual(0, result.LinesCleared);
+        Assert.IsEmpty(result.Cells);
+        Assert.AreEqual(4, result.Score(4));
+    }
+
+    [Test] public void ThreeIntersectingLinesRemoveSharedCellOnce()
+    {
+        for (int t = 0; t < 8; t++)
+        {
+            board.SetOccupied(t, 3, 4, true);
+            board.SetOccupied(2, t, 4, true);
+            board.SetOccupied(2, 3, t, true);
+        }
+        var result = board.GetCompletedLines();
+        Assert.AreEqual(3, result.LinesCleared);
+        Assert.AreEqual(22, result.Cells.Count);
+        Assert.AreEqual(10, result.ComboBonus);
+        Assert.AreEqual(42, result.Score(2));
+        board.ClearLines(result);
+        Assert.AreEqual(512, board.CountFreeCells());
+        board.ClearLines(result);
+        Assert.AreEqual(512, board.CountFreeCells());
+    }
+
+    [Test] public void ParallelLinesClearTogether()
+    {
+        for (int t = 0; t < 8; t++)
+        {
+            board.SetOccupied(t, 0, 0, true);
+            board.SetOccupied(t, 7, 7, true);
+        }
+        var result = board.GetCompletedLines();
+        Assert.AreEqual(2, result.LinesCleared);
+        Assert.AreEqual(16, result.Cells.Count);
+        Assert.AreEqual(5, result.ComboBonus);
+        board.ClearLines(result);
+        Assert.AreEqual(512, board.CountFreeCells());
+    }
+
+    [TestCase(Axis.XY)] [TestCase(Axis.XZ)] [TestCase(Axis.YZ)]
+    public void FullPlaneAwardsBonusBeforeLinesAreRemoved(Axis axis)
+    {
+        for (int a = 0; a < 8; a++)
+        for (int b = 0; b < 8; b++)
+            board.SetOccupied(axis == Axis.YZ ? 3 : a,
+                axis == Axis.XZ ? 3 : axis == Axis.YZ ? a : b,
+                axis == Axis.XY ? 3 : b, true);
+        var result = board.GetCompletedLines();
+        Assert.AreEqual(16, result.LinesCleared);
+        Assert.AreEqual(1, result.PlanesCompleted);
+        Assert.AreEqual(64, result.Cells.Count);
+        Assert.AreEqual(100, result.PlaneBonus);
+        Assert.AreEqual(339, result.Score(4));
+        board.ClearLines(result);
+        Assert.AreEqual(512, board.CountFreeCells());
+        Assert.AreEqual(1, result.PlanesCompleted); // snapshot survives clearing
+    }
+
+    [Test] public void FullCubeCountsAllLinesAndPlanesWithoutDuplicateCells()
+    {
+        for (int x = 0; x < 8; x++)
+        for (int y = 0; y < 8; y++)
+        for (int z = 0; z < 8; z++) board.SetOccupied(x, y, z, true);
+        var result = board.GetCompletedLines();
+        Assert.AreEqual(192, result.LinesCleared);
+        Assert.AreEqual(24, result.PlanesCompleted);
+        Assert.AreEqual(512, result.Cells.Count);
+        board.ClearLines(result);
+        Assert.AreEqual(512, board.CountFreeCells());
+        Assert.AreEqual(0, board.GetCompletedLines().Score(0));
+    }
 }

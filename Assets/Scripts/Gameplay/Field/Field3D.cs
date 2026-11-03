@@ -219,6 +219,19 @@ public class Field3D : MonoBehaviour
         return board.GetFreeCells().ConvertAll(c => new Vector3Int(c.x, c.y, c.z));
     }
 
+    public BoardModel.ClearResult GetCompletedLines() => board.GetCompletedLines();
+
+    public void ClearLines(BoardModel.ClearResult result)
+    {
+        if (result == null) return;
+        foreach (var c in result.Cells)
+        {
+            var block = GetCell(c.x, c.y, c.z);
+            ClearCell(c.x, c.y, c.z);
+            if (block != null) Destroy(block.gameObject);
+        }
+    }
+
     public Vector3Int WorldToGrid(Vector3 worldPosition)
     {
         return LocalToGrid(transform.InverseTransformPoint(worldPosition));

@@ -163,6 +163,63 @@ public class BoardModel
         return result;
     }
 
+    // A snapshot must be collected before any deletion: intersecting lines and
+    // plane bonuses all refer to the same board state.
+    public sealed class ClearResult
+    {
+        public int LinesCleared { get; }
+        public int PlanesCompleted { get; }
+        public IReadOnlyList<Cell> Cells { get; }
+        public int ComboBonus => Math.Max(0, LinesCleared - 1) * 5;
+        public int PlaneBonus => PlanesCompleted * 100;
+
+        internal ClearResult(int lines, int planes, List<Cell> cells)
+        {
+            LinesCleared = lines;
+            PlanesCompleted = planes;
+            Cells = cells.AsReadOnly();
+        }
+
+        public int Score(int placedCells, int pointsPerBlock = 1) =>
+            placedCells * pointsPerBlock + LinesCleared * 10 + ComboBonus + PlaneBonus;
+    }
+
+    public ClearResult GetCompletedLines()
+    {
+        var unique = new HashSet<Cell>();
+        var clearedCells = new List<Cell>();
+        int lines = 0;
+        for (int axis = 0; axis < 3; axis++)
+        for (int a = 0; a < Size; a++)
+        for (int b = 0; b < Size; b++)
+        {
+            bool full = true;
+            for (int t = 0; t < Size; t++)
+            {
+                var c = LineCell(axis, a, b, t);
+                if (!IsOccupied(c.x, c.y, c.z)) { full = false; break; }
+            }
+            if (!full) continue;
+            lines++;
+            for (int t = 0; t < Size; t++)
+            {
+                var c = LineCell(axis, a, b, t);
+                if (unique.Add(c)) clearedCells.Add(c);
+            }
+        }
+        return new ClearResult(lines, GetCompletedPlanes().Count, clearedCells);
+    }
+
+    private static Cell LineCell(int axis, int a, int b, int t) =>
+        axis == 0 ? new Cell(t, a, b) :
+        axis == 1 ? new Cell(a, t, b) : new Cell(a, b, t);
+
+    public void ClearLines(ClearResult result)
+    {
+        if (result == null) return;
+        foreach (var c in result.Cells) ClearCell(c.x, c.y, c.z);
+    }
+
     /// <summary>
     /// Ищет ЛЮБУЮ валидную позицию для фигуры на поле.
     /// Возвращает true, если нашлась anchor-позиция.

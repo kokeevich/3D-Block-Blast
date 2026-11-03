@@ -8,11 +8,6 @@ public class PlaneClearer : MonoBehaviour
     [SerializeField] private float popDuration = 0.25f;
     [SerializeField] private float popScale = 1.4f;
 
-    [Header("Combo Flash")]
-    [SerializeField] private float comboFlashDelay = 0.05f;
-
-    public System.Action<int, int> OnPlanesCleared; // (clearedCount, comboBonus)
-
     void Start()
     {
         if (field == null) field = GetComponent<Field3D>();
@@ -20,16 +15,16 @@ public class PlaneClearer : MonoBehaviour
 
     public void SetField(Field3D f) { field = f; }
 
-    public IEnumerator ClearPlanesWithAnimation(List<Field3D.Plane> planes)
+    // Keep the component name so existing scene references remain valid.
+    public IEnumerator ClearLinesWithAnimation(BoardModel.ClearResult result)
     {
-        if (field == null) yield break;
-        if (planes == null || planes.Count == 0) yield break;
-
-        int cleared = planes.Count;
-        int comboBonus = cleared >= 2 ? (cleared - 1) * 5 : 0;
-
-        // Соберём все блоки, которые нужно анимировать
-        var blocks = CollectBlocks(planes);
+        if (field == null || result == null || result.Cells.Count == 0) yield break;
+        var blocks = new List<Transform>(result.Cells.Count);
+        foreach (var c in result.Cells)
+        {
+            var block = field.GetCell(c.x, c.y, c.z);
+            if (block != null) blocks.Add(block);
+        }
 
         // Анимация: пульсация + исчезновение
         var scales = new List<Vector3>(blocks.Count);
@@ -66,33 +61,6 @@ public class PlaneClearer : MonoBehaviour
             yield return null;
         }
 
-        // Очищаем плоскости (уничтожаем блоки)
-        for (int i = 0; i < planes.Count; i++)
-            field.ClearPlane(planes[i]);
-
-        OnPlanesCleared?.Invoke(cleared, comboBonus);
-    }
-
-    private List<Transform> CollectBlocks(List<Field3D.Plane> planes)
-    {
-        var list = new List<Transform>();
-        for (int pi = 0; pi < planes.Count; pi++)
-        {
-            var plane = planes[pi];
-            for (int a = 0; a < Field3D.Size; a++)
-            for (int b = 0; b < Field3D.Size; b++)
-            {
-                int x = 0, y = 0, z = 0;
-                switch (plane.axis)
-                {
-                    case Field3D.PlaneAxis.XY: x = a; y = b; z = plane.index; break;
-                    case Field3D.PlaneAxis.XZ: x = a; y = plane.index; z = b; break;
-                    case Field3D.PlaneAxis.YZ: x = plane.index; y = a; z = b; break;
-                }
-                var t = field.GetCell(x, y, z);
-                if (t != null) list.Add(t);
-            }
-        }
-        return list;
+        field.ClearLines(result);
     }
 }

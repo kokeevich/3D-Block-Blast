@@ -13,13 +13,15 @@ public class ShapePlacer : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     [SerializeField] private float placeTapTime = 0.25f;
     [SerializeField] private float placeTapMaxDistance = 25f;
 
-    public delegate void ShapePlacedHandler(int cellsCount, int planesCleared, int comboBonus);
+    public delegate void ShapePlacedHandler(int cellsCount, BoardModel.ClearResult clearResult);
     public event ShapePlacedHandler OnShapePlaced;
 
     private Vector2 downPos;
     private float downTime;
     private bool tracking;
     private bool busyClearing;
+
+    public bool IsResolving => busyClearing;
 
     void Start()
     {
@@ -115,47 +117,33 @@ public class ShapePlacer : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
         // только управляемым предпросмотром и после установки больше не нужен.
         Destroy(figureGo);
 
-        // Анимация появления
-        StartCoroutine(AnimateSpawn(blocks));
-
-        // Проверяем заполненные плоскости и очищаем их с анимацией
-        var planes = field.GetCompletedPlanes();
-        int cellsCount = blocks.Count;
-        StartCoroutine(ResolvePlanesAndNotify(planes, cellsCount));
+        // Capture all lines and plane bonuses before removing any cell.
+        var result = field.GetCompletedLines();
+        busyClearing = true;
+        StartCoroutine(ResolveLinesAndNotify(result, blocks));
     }
 
-    private IEnumerator ResolvePlanesAndNotify(List<Field3D.Plane> planes, int cellsCount)
+    private IEnumerator ResolveLinesAndNotify(BoardModel.ClearResult result, List<GameObject> blocks)
     {
-        int cleared = 0;
-        int comboBonus = 0;
-
-        if (planes != null && planes.Count > 0 && planeClearer != null)
+        try
         {
-            busyClearing = true;
-            int bonusFromClearer = 0;
-            int clearedFromClearer = 0;
-
-            // Подпишемся на событие, чтобы получить точные значения
-            System.Action<int, int> handler = null;
-            handler = (c, b) => { clearedFromClearer = c; bonusFromClearer = b; };
-            planeClearer.OnPlanesCleared += handler;
-
-            yield return StartCoroutine(planeClearer.ClearPlanesWithAnimation(planes));
-
-            planeClearer.OnPlanesCleared -= handler;
-            cleared = clearedFromClearer;
-            comboBonus = bonusFromClearer;
+            // Run sequentially so spawn and clear never animate the same scale.
+            yield return StartCoroutine(AnimateSpawn(blocks));
+            if (result.Cells.Count > 0)
+            {
+                if (planeClearer != null)
+                {
+                    planeClearer.SetField(field);
+                    yield return StartCoroutine(planeClearer.ClearLinesWithAnimation(result));
+                }
+                else field.ClearLines(result);
+            }
+            OnShapePlaced?.Invoke(blocks.Count, result);
+        }
+        finally
+        {
             busyClearing = false;
         }
-        else if (planes != null && planes.Count > 0)
-        {
-            // Нет clearer — очищаем напрямую
-            cleared = planes.Count;
-            comboBonus = cleared >= 2 ? (cleared - 1) * 5 : 0;
-            foreach (var p in planes) field.ClearPlane(p);
-        }
-
-        OnShapePlaced?.Invoke(cellsCount, cleared, comboBonus);
     }
 
     private IEnumerator AnimateSpawn(List<GameObject> blocks)
