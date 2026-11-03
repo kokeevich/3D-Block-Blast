@@ -152,6 +152,22 @@ public class GameManager : MonoBehaviour
         if (bestScoreText != null) bestScoreText.text = bestScore.ToString();
     }
 
+    public bool TrySelectOffer(int index)
+    {
+        if (!CanSelectShape || shapeSelector == null || activeFigureController == null ||
+            !shapeSelector.CanPlaceShapeAnywhere(index)) return false;
+        if (activeFigureController.HasActiveFigure)
+        {
+            if (lastSpawnedButtonIndex == index) return true;
+            activeFigureController.ClearActiveFigure();
+            lastSpawnedButtonIndex = -1;
+        }
+        var instance = shapeSelector.SpawnRealShape(index, field.transform.position);
+        if (instance == null) return false;
+        lastSpawnedButtonIndex = index;
+        return true;
+    }
+
     public void CancelSelection()
     {
         if (!CanSelectShape) return;

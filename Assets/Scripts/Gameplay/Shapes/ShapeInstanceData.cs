@@ -5,6 +5,7 @@ public class ShapeInstanceData
 {
     public GameObject prefab;
     public string category;
+    public Color color = Color.white;
     [System.NonSerialized] public ShapeOffer offer;
     [System.NonSerialized] public BoardModel.Cell[] baseCells;
 

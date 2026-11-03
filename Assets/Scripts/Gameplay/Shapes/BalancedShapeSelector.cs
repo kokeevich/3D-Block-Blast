@@ -13,6 +13,8 @@ public class BalancedShapeSelector : MonoBehaviour
     private readonly List<ShapeInstanceData> catalog = new List<ShapeInstanceData>();
     private ShapeInstanceData[] assignedShapes;
     private bool[] used;
+    public bool ShowLegacyPreviews { get; set; } = true;
+    public event Action OnOfferChanged;
     public event Action OnShapesAllUsed;
     public event Action OnNewSetGenerated;
     public event Action OnNoValidPlacement;
@@ -100,12 +102,16 @@ public class BalancedShapeSelector : MonoBehaviour
         for (int i = 0; i < count; i++)
         {
             int slot = i;
+            assignedShapes[i].color = OfferColor(i);
             assignedShapes[i].onRotationChanged = () => RefreshPreview(slot);
             RefreshPreview(i);
         }
         OnNewSetGenerated?.Invoke();
         if (field != null && !AnyRemainingShapeCanBePlaced()) OnNoValidPlacement?.Invoke();
     }
+
+    public static Color OfferColor(int index) => index % 3 == 0 ? new Color(0.22f,0.87f,0.78f) :
+        index % 3 == 1 ? new Color(0.65f,0.56f,1f) : new Color(1f,0.71f,0.34f);
 
     private float Weight(string category)
     {
@@ -150,6 +156,8 @@ public class BalancedShapeSelector : MonoBehaviour
 
     void RefreshPreview(int i)
     {
+        OnOfferChanged?.Invoke();
+        if (!ShowLegacyPreviews) return;
         var data = assignedShapes[i];
         if (data?.prefab == null || spawnButtons[i] == null) return;
 

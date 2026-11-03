@@ -62,14 +62,14 @@ result. Unity's own EditMode attempt stopped at licensing before test execution.
 2. Before selection, drag the cube freely in any direction. On a phone, pinch
    to zoom; in the Editor, use the mouse wheel over the game gesture regions.
    Releasing one finger after pinch must not start rotation or placement.
-3. Choose an offer. Its preview and target ghost should have the same shape
+3. Choose an offer. Its card illustration and target ghost should have the same shape
    and orientation. Drag horizontally/vertically from the current viewpoint:
    the ghost should move in the two axes of the closest face; the cube should
    remain still. Test after viewing the cube from every side.
-4. Move the depth slider through 1–8 (near to far anchor layers). A thick shape
+4. Use the depth buttons 1–8 (near to far anchor layers). A thick shape
    can extend outside the board at an edge layer: it must turn red and disable
    placement. Move across occupied blocks: red ghost cells must remain visible.
-5. Use both rotation buttons to change the offer's orientation. The thumbnail
+5. Use both rotation buttons to change the offer's orientation. The card illustration
    should update too. Find a valid position: the ghost turns green and
    `Поставить` enables. Releasing a drag or tapping the gesture region must
    never place a figure; only the confirmation button places it.
@@ -90,7 +90,8 @@ is centralized in `FieldRotator` to prevent duplicate movement on release.
 
 `OfferInteractionTests.VisibleOfferReceivesClickAndCreatesAnActiveFigure` enters
 Play Mode, loads the real Game scene, raycasts the visible first card, dispatches
-its click, checks the active figure/placement, and checks cancellation. Run this
+its click, checks cancellation, switches through all three offers, then confirms
+placement and verifies score/consumption of only the selected offer. Run this
 in Unity's EditMode Test Runner; it is excluded from standalone .NET because it
 needs Unity's player lifecycle and EventSystem. It has not run in the cloud
 without an activated Unity license.
@@ -99,3 +100,27 @@ Regression cause: the previous layout moved the offer slots underneath the
 transparent `SwipeZoneFigure` Image, which was still a UI raycast target.
 The raw gesture handler does not need those Images to receive EventSystem hits.
 Both gesture Images now have raycastTarget disabled in the scene and at startup.
+
+
+### Updated game screen
+
+The old wallpaper Canvas and 3D offer previews are hidden at runtime; gameplay
+components inside the Canvas remain active. A new safe-area HUD shows score,
+record, three large cards and contextual placement actions. Decorative graphics
+have raycastTarget=false; only actual buttons receive hits. New cards call the
+central GameManager.TrySelectOffer path, with selection changes permitted before
+confirmation. Unplaceable offers are muted and labelled «Нет места».
+
+Check the new screen in portrait and landscape: the offer/control panel moves
+to the right in landscape. Card art and labels must not block the whole-card hit
+area. The active card receives an accent outline. Verify color continuity from
+card to placed blocks, score gain feedback, and the new Restart overlay at Game
+Over. Browsing hides placement-only actions instead of showing a disabled row.
+The board now displays 12 edges, a quiet floor guide and the active layer grid.
+Try all eight layers and both rotation buttons after freely rotating the cube.
+
+Standalone model tests: 46 passed. Runtime and Unity integration-test sources
+compile against the actual Unity 2022.3.62f3 assemblies (including its matching
+UGUI and test-runner references). Scene/UI interaction tests remain unrun in the
+cloud because the editor has no activated license. Compilation does not verify
+raycast results, visual appearance, shader rendering or touch behavior.

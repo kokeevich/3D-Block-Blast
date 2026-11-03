@@ -1,127 +1,313 @@
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>Runtime controls keep the existing Game scene usable without Inspector wiring.</summary>
+/// <summary>The game HUD owns explicit, raycastable offer cards and placement actions.</summary>
 public class MobilePlacementControls : MonoBehaviour
 {
+    private static readonly Color Background = new Color(0.035f,0.055f,0.10f);
+    private static readonly Color PanelColor = new Color(0.065f,0.09f,0.15f);
+    private static readonly Color Muted = new Color(0.49f,0.57f,0.69f);
+    private static readonly Color Accent = new Color(0.32f,0.91f,0.78f);
     private ActiveFigureController figure;
     private ShapePlacer placer;
     private GameManager game;
+    private BalancedShapeSelector selector;
+    private Field3D field;
     private GameObject canvasObject;
-    private RectTransform panel;
-    private Text hint, depthLabel;
-    private Slider depth;
+    private Canvas canvas;
+    private RectTransform safeRoot, boardArea, tray, hud;
+    private GameObject placementActions, browseHelp, gameOver;
+    private Text scoreText, recordText, hint, modeText, depthText, setText, gainText, finalScore;
+    private readonly Button[] cards = new Button[3];
+    private readonly Image[] cardBackgrounds = new Image[3];
+    private readonly Outline[] cardBorders = new Outline[3];
+    private readonly ShapeThumbnailGraphic[] thumbnails = new ShapeThumbnailGraphic[3];
+    private readonly Text[] cardLabels = new Text[3];
+    private readonly ShapeInstanceData[] drawnOffers = new ShapeInstanceData[3];
+    private readonly int[] drawnRotations = { -1,-1,-1 };
+    private readonly bool[] offerFits = new bool[3];
+    private readonly Button[] layers = new Button[8];
     private Button rotateHorizontal, rotateVertical, cancel, place;
     private Font font;
-    private RectTransform[] offerSlots;
+    private Sprite rounded;
+    private Texture2D roundedTexture;
+    private int lastScore, screenWidth, screenHeight;
+    private float displayedScore, gainTime;
 
     public void Initialize(ActiveFigureController controller, ShapePlacer shapePlacer, GameManager manager)
     {
         figure = controller; placer = shapePlacer; game = manager;
+        selector = FindObjectOfType<BalancedShapeSelector>();
+        field = FindObjectOfType<Field3D>();
         font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        canvasObject = new GameObject("PlacementControls", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-        var canvas = canvasObject.GetComponent<Canvas>();
+        MakeRoundedSprite();
+        // Preserve gameplay components inside the old Canvas, while replacing
+        // its wallpaper, world-space previews and invisible hit regions.
+        foreach (var oldCanvas in FindObjectsOfType<Canvas>())
+        {
+            oldCanvas.enabled = false;
+            var raycaster = oldCanvas.GetComponent<GraphicRaycaster>();
+            if (raycaster != null) raycaster.enabled = false;
+        }
+        if (selector != null)
+        {
+            selector.ShowLegacyPreviews = false;
+            if (selector.spawnButtons != null)
+                foreach (var slot in selector.spawnButtons)
+                    if (slot != null && slot.parent != null) slot.parent.gameObject.SetActive(false);
+        }
+        canvasObject = new GameObject("GameHUD",typeof(Canvas),typeof(CanvasScaler),typeof(GraphicRaycaster));
+        canvas = canvasObject.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 100;
         var scaler = canvasObject.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1080, 1920);
+        scaler.referenceResolution = new Vector2(1080,1920);
         scaler.matchWidthOrHeight = 0;
-        var selector = FindObjectOfType<BalancedShapeSelector>();
-        if (selector != null && selector.spawnButtons != null)
-            offerSlots = System.Array.ConvertAll(selector.spawnButtons, slot => slot != null ? slot.parent as RectTransform : null);
-        panel = Rect("Panel", canvasObject.transform, new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 280), new Vector2(0, 0));
-        panel.pivot = new Vector2(0.5f, 0);
-        var background = panel.gameObject.AddComponent<Image>();
-        background.color = new Color(0.04f, 0.07f, 0.12f, 0.94f);
-        hint = Label("Hint", panel, "", new Vector2(0.02f, 0.7f), new Vector2(0.98f, 1));
-        hint.fontSize = 27;
-        depthLabel = Label("Depth", panel, "", new Vector2(0.02f, 0.4f), new Vector2(0.25f, 0.7f));
-        var sliderRect = Rect("DepthSlider", panel, new Vector2(0.28f, 0.43f), new Vector2(0.96f, 0.66f));
-        var sliderBackground = sliderRect.gameObject.AddComponent<Image>();
-        sliderBackground.color = new Color(0.2f, 0.25f, 0.32f);
-        depth = sliderRect.gameObject.AddComponent<Slider>();
-        depth.minValue = 0; depth.maxValue = 7; depth.wholeNumbers = true;
-        var handleArea = Rect("HandleArea", sliderRect, Vector2.zero, Vector2.one);
-        handleArea.offsetMin = new Vector2(25, 0); handleArea.offsetMax = new Vector2(-25, 0);
-        var handle = Rect("Handle", handleArea, Vector2.zero, new Vector2(0, 1), new Vector2(50, 0));
-        var handleImage = handle.gameObject.AddComponent<Image>();
-        handleImage.color = new Color(0.4f, 0.85f, 1);
-        depth.handleRect = handle; depth.targetGraphic = handleImage;
-        depth.onValueChanged.AddListener(value => { if (CanInteract) figure.SetDepth(Mathf.RoundToInt(value)); });
-        rotateHorizontal = MakeButton("Поворот ↔", 0, () => { if (CanInteract) figure.Rotate(figure.Frame.VerticalAxis); });
-        rotateVertical = MakeButton("Поворот ↕", 1, () => { if (CanInteract) figure.Rotate(figure.Frame.HorizontalAxis); });
-        cancel = MakeButton("Отмена", 2, () => { if (CanInteract) game.CancelSelection(); });
-        place = MakeButton("Поставить", 3, () => { if (CanInteract) placer.TryPlaceActive(); });
+        safeRoot = Rect("SafeArea",canvasObject.transform,Vector2.zero,Vector2.one);
+        boardArea = Rect("BoardGestureArea",safeRoot,new Vector2(0.02f,0.40f),new Vector2(0.98f,0.84f));
+        BuildHeader(); BuildTray(); BuildGameOver();
+        ConfigureView();
+    }
+
+    private void BuildHeader()
+    {
+        hud = Rect("Header",safeRoot,new Vector2(0,1),Vector2.one,new Vector2(-88,230),new Vector2(0,-24));
+        hud.pivot = new Vector2(0.5f,1);
+        Label("Brand",hud,"BLOCK BLAST",new Vector2(0,0.77f),new Vector2(0.70f,1),42,Muted,TextAnchor.MiddleLeft,true);
+        Label("ScoreCaption",hud,"СЧЁТ",new Vector2(0,0.55f),new Vector2(0.4f,0.74f),30,Muted,TextAnchor.MiddleLeft);
+        scoreText = Label("Score",hud,"0",new Vector2(0,0.08f),new Vector2(0.6f,0.58f),104,Color.white,TextAnchor.MiddleLeft,true);
+        var record = Box("RecordPill",hud,new Vector2(0.70f,0.35f),new Vector2(1,0.94f),PanelColor);
+        Label("Caption",record,"РЕКОРД",new Vector2(0,0.55f),Vector2.one,28,Muted);
+        recordText = Label("Record",record,"0",new Vector2(0,0.04f),new Vector2(1,0.62f),38,Accent,TextAnchor.MiddleCenter,true);
+        gainText = Label("ScoreGain",hud,"",new Vector2(0.3f,0.14f),new Vector2(0.65f,0.6f),34,Accent,TextAnchor.MiddleLeft,true);
+        modeText = Label("Mode",safeRoot,"ВЫБЕРИТЕ ФИГУРУ",new Vector2(0.1f,0.815f),new Vector2(0.9f,0.85f),32,Accent);
+        hint = Label("Hint",safeRoot,"Вращайте куб одним пальцем",new Vector2(0.06f,0.775f),new Vector2(0.94f,0.813f),36,Muted);
+    }
+
+    private void BuildTray()
+    {
+        tray = Box("OfferTray",safeRoot,Vector2.zero,new Vector2(1,0),PanelColor,new Vector2(-48,700),new Vector2(0,20));
+        tray.pivot = new Vector2(0.5f,0);
+        Label("TrayCaption",tray,"ВАШИ ФИГУРЫ",new Vector2(0.03f,0.91f),new Vector2(0.65f,0.99f),30,Muted,TextAnchor.MiddleLeft,true);
+        setText = Label("SetCount",tray,"3 / 3",new Vector2(0.75f,0.91f),new Vector2(0.97f,0.99f),30,Muted,TextAnchor.MiddleRight);
+        for (int i = 0; i < 3; i++)
+        {
+            int index = i;
+            float left = 0.025f + i*0.325f;
+            cards[i] = Button("OfferCard_"+i,tray,"",new Vector2(left,0.55f),new Vector2(left+0.30f,0.89f),
+                new Color(0.10f,0.135f,0.21f),Color.white,() => game.TrySelectOffer(index));
+            cardBackgrounds[i] = cards[i].GetComponent<Image>();
+            cardBorders[i] = cards[i].gameObject.AddComponent<Outline>();
+            cardBorders[i].effectDistance = new Vector2(2,-2);
+            cardBorders[i].effectColor = Color.clear;
+            var art = Rect("ShapeArt",cards[i].transform,new Vector2(0.08f,0.21f),new Vector2(0.92f,0.96f));
+            thumbnails[i] = art.gameObject.AddComponent<ShapeThumbnailGraphic>();
+            thumbnails[i].raycastTarget = false;
+            cardLabels[i] = Label("OfferLabel",cards[i].transform,"",new Vector2(0,0.02f),new Vector2(1,0.22f),34,Muted);
+        }
+        browseHelp = Rect("BrowseHelp",tray,new Vector2(0.04f,0.03f),new Vector2(0.96f,0.46f)).gameObject;
+        Label("Instruction",browseHelp.transform,"Выберите фигуру и найдите ей место",new Vector2(0,0.55f),Vector2.one,40,Color.white);
+        Label("Rule",browseHelp.transform,"Соберите 8 блоков в линию, чтобы её очистить",new Vector2(0,0.24f),new Vector2(1,0.6f),34,Muted);
+        Label("Gestures",browseHelp.transform,"Один палец — вращение   ·   Два — масштаб",Vector2.zero,new Vector2(1,0.3f),30,Muted);
+        placementActions = Rect("PlacementActions",tray,Vector2.zero,new Vector2(1,0.53f)).gameObject;
+        var actions = placementActions.transform;
+        Label("DepthCaption",actions,"ГЛУБИНА",new Vector2(0.03f,0.82f),new Vector2(0.5f,1),28,Muted,TextAnchor.MiddleLeft);
+        depthText = Label("DepthValue",actions,"1 / 8",new Vector2(0.65f,0.82f),new Vector2(0.97f,1),32,Accent,TextAnchor.MiddleRight);
+        for (int i = 0; i < 8; i++)
+        {
+            int layer = i;
+            float x = 0.027f+i*0.119f;
+            layers[i] = Button("Layer_"+i,actions,(i+1).ToString(),new Vector2(x,0.48f),new Vector2(x+0.108f,0.79f),
+                new Color(0.10f,0.14f,0.22f),Muted,() => { if (CanInteract) figure.SetDepth(layer); });
+        }
+        rotateHorizontal = Button("RotateSide",actions,"↻ Вбок",new Vector2(0.027f,0.07f),new Vector2(0.185f,0.40f),
+            new Color(0.13f,0.18f,0.27f),Color.white,() => { if (CanInteract) figure.Rotate(figure.Frame.VerticalAxis); });
+        rotateVertical = Button("RotateUp",actions,"↻ Вверх",new Vector2(0.20f,0.07f),new Vector2(0.358f,0.40f),
+            new Color(0.13f,0.18f,0.27f),Color.white,() => { if (CanInteract) figure.Rotate(figure.Frame.HorizontalAxis); });
+        cancel = Button("Cancel",actions,"Отмена",new Vector2(0.38f,0.07f),new Vector2(0.57f,0.40f),
+            new Color(0.13f,0.18f,0.27f),Color.white,() => { if (CanInteract) game.CancelSelection(); });
+        place = Button("ConfirmPlacement",actions,"Поставить",new Vector2(0.59f,0.07f),new Vector2(0.973f,0.40f),
+            Accent,Background,() => { if (CanInteract) placer.TryPlaceActive(); });
+        placementActions.SetActive(false);
+    }
+
+    private void BuildGameOver()
+    {
+        gameOver = Box("GameOverOverlay",safeRoot,Vector2.zero,Vector2.one,new Color(0.015f,0.025f,0.05f,0.92f)).gameObject;
+        gameOver.GetComponent<Image>().raycastTarget = true;
+        var card = Box("GameOverCard",gameOver.transform,new Vector2(0.08f,0.30f),new Vector2(0.92f,0.69f),PanelColor);
+        Label("Title",card,"Хорошая партия!",new Vector2(0.04f,0.72f),new Vector2(0.96f,0.94f),48,Color.white,TextAnchor.MiddleCenter,true);
+        Label("Caption",card,"Больше нет места для оставшихся фигур",new Vector2(0.05f,0.56f),new Vector2(0.95f,0.75f),36,Muted);
+        finalScore = Label("FinalScore",card,"0",new Vector2(0,0.25f),new Vector2(1,0.58f),86,Accent,TextAnchor.MiddleCenter,true);
+        Button("Restart",card,"Ещё раз",new Vector2(0.1f,0.07f),new Vector2(0.9f,0.25f),Accent,Background,game.RestartGame);
+        gameOver.SetActive(false);
     }
 
     private bool CanInteract => figure != null && figure.HasActiveFigure && placer != null && !placer.IsResolving && !game.IsGameOver;
-    public bool Contains(Vector2 position) => panel != null && RectTransformUtility.RectangleContainsScreenPoint(panel, position);
+    public bool Contains(Vector2 position) => tray != null && RectTransformUtility.RectangleContainsScreenPoint(tray,position);
+    public bool IsBoardArea(Vector2 position) => boardArea != null && !game.IsGameOver && !Contains(position) &&
+        RectTransformUtility.RectangleContainsScreenPoint(boardArea,position);
 
     private void Update()
     {
-        if (panel == null) return;
-        var safe = Screen.safeArea;
-        var canvas = canvasObject.GetComponent<Canvas>();
-        panel.anchorMin = new Vector2(safe.xMin / Mathf.Max(1, Screen.width), 0);
-        panel.anchorMax = new Vector2(safe.xMax / Mathf.Max(1, Screen.width), 0);
-        panel.anchoredPosition = new Vector2(0, safe.yMin / canvas.scaleFactor);
-        // Existing offer slots were at the bottom of Game's canvas. Keep them
-        // above the new controls without requiring edits to the serialized scene.
-        if (offerSlots != null)
-            foreach (var slot in offerSlots)
-            {
-                if (slot == null) continue;
-                var slotCanvas = slot.GetComponentInParent<Canvas>();
-                float bottom = safe.yMin / (slotCanvas != null ? slotCanvas.scaleFactor : canvas.scaleFactor);
-                var position = slot.anchoredPosition;
-                position.y = Mathf.Max(position.y, 310 + bottom + slot.rect.height * slot.pivot.y);
-                slot.anchoredPosition = position;
-            }
+        if (safeRoot == null) return;
+        Rect safe = Screen.safeArea;
+        safeRoot.anchorMin = new Vector2(safe.xMin/Mathf.Max(1,Screen.width),safe.yMin/Mathf.Max(1,Screen.height));
+        safeRoot.anchorMax = new Vector2(safe.xMax/Mathf.Max(1,Screen.width),safe.yMax/Mathf.Max(1,Screen.height));
+        if (screenWidth != Screen.width || screenHeight != Screen.height) ConfigureView();
         bool active = CanInteract;
-        rotateHorizontal.interactable = rotateVertical.interactable = cancel.interactable = depth.interactable = active;
+        placementActions.SetActive(figure.HasActiveFigure);
+        browseHelp.SetActive(!figure.HasActiveFigure);
+        rotateHorizontal.interactable = rotateVertical.interactable = cancel.interactable = active;
         place.interactable = active && figure.CanPlaceAtCurrent();
-        if (figure != null && figure.HasActiveFigure)
+        for (int i = 0; i < layers.Length; i++)
         {
-            depth.SetValueWithoutNotify(figure.Depth);
-            depthLabel.text = "Слой " + (figure.Depth + 1) + " / 8";
-            hint.text = figure.CanPlaceAtCurrent() ? "Двигайте фигуру • выберите глубину • поставьте" : "Красный: занято или за границей. Сдвиньте или поверните";
+            layers[i].interactable = active;
+            layers[i].GetComponent<Image>().color = figure.HasActiveFigure && figure.Depth == i ? Accent : new Color(0.10f,0.14f,0.22f);
+            layers[i].GetComponentInChildren<Text>().color = figure.HasActiveFigure && figure.Depth == i ? Background : Muted;
+        }
+        depthText.text = (figure.Depth+1)+" / 8";
+        modeText.text = game.IsGameOver ? "ПАРТИЯ ЗАВЕРШЕНА" : placer.IsResolving ? "ОТЛИЧНЫЙ ХОД" :
+            !figure.HasActiveFigure ? "ВЫБЕРИТЕ ФИГУРУ" : figure.CanPlaceAtCurrent() ? "МОЖНО ПОСТАВИТЬ" : "НУЖНО ДРУГОЕ МЕСТО";
+        modeText.color = figure.HasActiveFigure && !figure.CanPlaceAtCurrent() ? new Color(1,0.55f,0.47f) : Accent;
+        hint.text = placer.IsResolving ? "" : !figure.HasActiveFigure ? "Вращайте куб одним пальцем" :
+            figure.CanPlaceAtCurrent() ? "Двигайте фигуру • меняйте глубину" : "Сдвиньте фигуру или смените глубину";
+        RefreshOffers();
+        displayedScore = Mathf.MoveTowards(displayedScore,game.Score,Mathf.Max(30,Mathf.Abs(game.Score-displayedScore)*8)*Time.unscaledDeltaTime);
+        scoreText.text = Mathf.RoundToInt(displayedScore).ToString();
+        recordText.text = Mathf.Max(game.BestScore,game.Score).ToString();
+        if (game.Score > lastScore)
+        { gainText.text = "+"+(game.Score-lastScore); lastScore = game.Score; gainTime = 1; }
+        gainTime = Mathf.Max(0,gainTime-Time.unscaledDeltaTime);
+        gainText.color = new Color(Accent.r,Accent.g,Accent.b,gainTime);
+        gameOver.SetActive(game.IsGameOver);
+        if (game.IsGameOver) finalScore.text = game.Score.ToString();
+    }
+
+    private void RefreshOffers()
+    {
+        if (selector == null) return;
+        int remaining = 0;
+        for (int i = 0; i < cards.Length; i++)
+        {
+            var offer = selector.GetShape(i);
+            if (offer != null) remaining++;
+            bool selected = offer != null && figure.ActiveOffer == offer;
+            int rotation = offer != null ? offer.offer.Orientation : -1;
+            bool redraw = offer != drawnOffers[i] || rotation != drawnRotations[i] || game.Score != lastScore;
+            if (redraw) offerFits[i] = offer != null && selector.CanPlaceShapeAnywhere(i);
+            cards[i].interactable = offer != null && offerFits[i] && game.CanSelectShape;
+            cardBorders[i].effectColor = selected ? offer.color : Color.clear;
+            cardBackgrounds[i].color = selected ? new Color(0.12f,0.21f,0.26f) : new Color(0.10f,0.135f,0.21f);
+            cardLabels[i].text = offer == null ? "Готово" : selected ? "Выбрано" : !offerFits[i] ? "Нет места" : offer.baseCells.Length+" блок.";
+            cardLabels[i].color = selected ? offer.color : Muted;
+            if (redraw)
+            {
+                drawnOffers[i] = offer; drawnRotations[i] = rotation;
+                thumbnails[i].SetShape(offer?.offer.Cells,offer == null ? Color.clear : offerFits[i] ? offer.color : new Color(Muted.r,Muted.g,Muted.b,0.4f));
+            }
+        }
+        setText.text = remaining+" / 3";
+    }
+
+    private void ConfigureView()
+    {
+        screenWidth = Screen.width; screenHeight = Screen.height;
+        var view = Camera.main;
+        if (view == null || field == null) return;
+        view.clearFlags = CameraClearFlags.SolidColor; view.backgroundColor = Background;
+        view.orthographic = false; view.fieldOfView = 38; view.nearClipPlane = 0.05f;
+        bool landscape = Screen.width > Screen.height;
+        if (landscape)
+        {
+            tray.anchorMin = new Vector2(0.58f,0.03f); tray.anchorMax = new Vector2(0.98f,0.97f);
+            tray.pivot = new Vector2(0.5f,0.5f); tray.sizeDelta = Vector2.zero; tray.anchoredPosition = Vector2.zero;
+            hud.anchorMin = new Vector2(0,1); hud.anchorMax = new Vector2(0.55f,1);
+            hud.sizeDelta = new Vector2(-64,210);
+            boardArea.anchorMin = new Vector2(0.02f,0.06f); boardArea.anchorMax = new Vector2(0.56f,0.70f);
+            modeText.rectTransform.anchorMin = new Vector2(0.03f,0.72f); modeText.rectTransform.anchorMax = new Vector2(0.53f,0.77f);
+            hint.rectTransform.anchorMin = new Vector2(0.03f,0.66f); hint.rectTransform.anchorMax = new Vector2(0.53f,0.72f);
         }
         else
         {
-            depthLabel.text = "Глубина";
-            hint.text = game.IsGameOver ? "Нет доступных ходов" : placer.IsResolving ? "Размещение…" : "Вращайте куб пальцем • масштаб двумя • выберите фигуру";
+            tray.anchorMin = Vector2.zero; tray.anchorMax = new Vector2(1,0);
+            tray.pivot = new Vector2(0.5f,0); tray.sizeDelta = new Vector2(-48,700); tray.anchoredPosition = new Vector2(0,20);
+            hud.anchorMin = new Vector2(0,1); hud.anchorMax = Vector2.one; hud.sizeDelta = new Vector2(-88,230);
+            boardArea.anchorMin = new Vector2(0.02f,0.40f); boardArea.anchorMax = new Vector2(0.98f,0.84f);
+            modeText.rectTransform.anchorMin = new Vector2(0.10f,0.815f); modeText.rectTransform.anchorMax = new Vector2(0.90f,0.85f);
+            hint.rectTransform.anchorMin = new Vector2(0.06f,0.775f); hint.rectTransform.anchorMax = new Vector2(0.94f,0.813f);
         }
+        Quaternion rotation = Quaternion.Euler(24,36,0);
+        float half = Field3D.Size*field.CellSize*0.5f;
+        float radius = Vector3.Scale(Vector3.one*half,field.transform.lossyScale).magnitude;
+        float tan = Mathf.Tan(view.fieldOfView*Mathf.Deg2Rad*0.5f);
+        float angle = Mathf.Atan(tan*Mathf.Min(landscape ? 0.52f : 0.44f,view.aspect*(landscape ? 0.46f : 0.90f)));
+        float distance = radius/Mathf.Sin(angle);
+        view.transform.rotation = rotation;
+        float centerX = landscape ? 0.28f : 0.5f, centerY = landscape ? 0.40f : 0.62f;
+        view.transform.position = field.transform.position-rotation*Vector3.forward*distance-
+            rotation*Vector3.up*(2*distance*tan*(centerY-0.5f))-
+            rotation*Vector3.right*(2*distance*tan*view.aspect*(centerX-0.5f));
+        RenderSettings.ambientLight = new Color(0.42f,0.50f,0.65f);
+        var rotator = field.GetComponent<FieldRotator>();
+        if (rotator != null) rotator.RefreshZoomLimits();
     }
 
-    private Button MakeButton(string title, int index, UnityEngine.Events.UnityAction action)
+    private Button Button(string name,Transform parent,string title,Vector2 min,Vector2 max,Color background,Color foreground,UnityEngine.Events.UnityAction action)
     {
-        float x = 0.02f + index * 0.245f;
-        var rect = Rect(title, panel, new Vector2(x, 0.05f), new Vector2(x + 0.225f, 0.34f));
-        var image = rect.gameObject.AddComponent<Image>();
-        image.color = new Color(0.15f, 0.37f, 0.52f);
-        var button = rect.gameObject.AddComponent<Button>();
-        button.targetGraphic = image;
+        var rect = Box(name,parent,min,max,background);
+        var image = rect.GetComponent<Image>(); image.raycastTarget = true;
+        var button = rect.gameObject.AddComponent<Button>(); button.targetGraphic = image;
+        var colors = button.colors;
+        colors.highlightedColor = new Color(1.13f,1.13f,1.13f); colors.pressedColor = new Color(0.75f,0.87f,0.90f);
+        colors.selectedColor = Color.white; colors.disabledColor = new Color(0.65f,0.70f,0.78f,0.7f);
+        button.colors = colors; button.navigation = new Navigation { mode = Navigation.Mode.None };
         button.onClick.AddListener(action);
-        Label("Label", rect, title, Vector2.zero, Vector2.one);
+        if (!string.IsNullOrEmpty(title)) Label("Label",rect,title,new Vector2(0.03f,0.02f),new Vector2(0.97f,0.98f),34,foreground,TextAnchor.MiddleCenter,true);
         return button;
     }
-    private Text Label(string name, Transform parent, string value, Vector2 min, Vector2 max)
+    private Text Label(string name,Transform parent,string value,Vector2 min,Vector2 max,int size,Color tint,TextAnchor alignment=TextAnchor.MiddleCenter,bool bold=false)
     {
-        var rect = Rect(name, parent, min, max);
+        var rect = Rect(name,parent,min,max);
         var text = rect.gameObject.AddComponent<Text>();
-        text.font = font; text.fontSize = 29; text.alignment = TextAnchor.MiddleCenter;
-        text.text = value; text.color = Color.white; text.raycastTarget = false;
-        text.resizeTextForBestFit = true; text.resizeTextMinSize = 18; text.resizeTextMaxSize = 29;
+        text.font = font; text.fontSize = size; text.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal;
+        text.alignment = alignment; text.text = value; text.color = tint; text.raycastTarget = false;
+        text.horizontalOverflow = HorizontalWrapMode.Wrap; text.verticalOverflow = VerticalWrapMode.Truncate;
         return text;
     }
-    private static RectTransform Rect(string name, Transform parent, Vector2 min, Vector2 max,
-        Vector2 size = default, Vector2 position = default)
+    private RectTransform Box(string name,Transform parent,Vector2 min,Vector2 max,Color tint,Vector2 size=default,Vector2 position=default)
     {
-        var rect = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>();
-        rect.SetParent(parent, false); rect.anchorMin = min; rect.anchorMax = max;
-        rect.sizeDelta = size; rect.anchoredPosition = position;
+        var rect = Rect(name,parent,min,max,size,position);
+        var image = rect.gameObject.AddComponent<Image>(); image.sprite = rounded; image.type = Image.Type.Sliced;
+        image.color = tint; image.raycastTarget = false;
         return rect;
     }
-    private void OnDestroy() { if (canvasObject != null) Destroy(canvasObject); }
+    private static RectTransform Rect(string name,Transform parent,Vector2 min,Vector2 max,Vector2 size=default,Vector2 position=default)
+    {
+        var rect = new GameObject(name,typeof(RectTransform)).GetComponent<RectTransform>();
+        rect.SetParent(parent,false); rect.anchorMin=min; rect.anchorMax=max; rect.sizeDelta=size; rect.anchoredPosition=position;
+        return rect;
+    }
+    private void MakeRoundedSprite()
+    {
+        const int size=128; const float radius=24;
+        roundedTexture = new Texture2D(size,size,TextureFormat.RGBA32,false) { name="HUD Rounded Panel",filterMode=FilterMode.Bilinear,wrapMode=TextureWrapMode.Clamp };
+        var pixels = new Color[size*size];
+        for (int y=0;y<size;y++) for (int x=0;x<size;x++)
+        {
+            float dx=Mathf.Max(Mathf.Abs(x+0.5f-size*0.5f)-(size*0.5f-radius),0);
+            float dy=Mathf.Max(Mathf.Abs(y+0.5f-size*0.5f)-(size*0.5f-radius),0);
+            pixels[y*size+x]=new Color(1,1,1,Mathf.Clamp01(radius-Mathf.Sqrt(dx*dx+dy*dy)));
+        }
+        roundedTexture.SetPixels(pixels); roundedTexture.Apply();
+        rounded = Sprite.Create(roundedTexture,new Rect(0,0,size,size),new Vector2(0.5f,0.5f),100,0,SpriteMeshType.FullRect,new Vector4(32,32,32,32));
+    }
+    private void OnDestroy()
+    {
+        if (canvasObject != null) Destroy(canvasObject);
+        if (rounded != null) Destroy(rounded);
+        if (roundedTexture != null) Destroy(roundedTexture);
+    }
 }

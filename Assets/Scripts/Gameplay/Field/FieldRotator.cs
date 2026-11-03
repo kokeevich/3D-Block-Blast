@@ -52,7 +52,7 @@ public class FieldRotator : MonoBehaviour
     private bool Blocked => (placer != null && placer.IsResolving) || (game != null && game.IsGameOver);
     private bool InZone(Vector2 position)
     {
-        if (controls != null && controls.Contains(position)) return false;
+        if (controls != null) return controls.IsBoardArea(position);
         if (offerButtons != null)
             foreach (var button in offerButtons)
                 if (button != null && Contains(button.GetComponent<RectTransform>(), position)) return false;
@@ -142,6 +142,14 @@ public class FieldRotator : MonoBehaviour
         else if (figure.Frame.DepthAxis == 1) offset.y = 0;
         else offset.z = 0;
         figure.SetGridPosition(anchorStart + offset);
+    }
+
+    public void RefreshZoomLimits()
+    {
+        if (view == null) view = Camera.main;
+        if (view == null) return;
+        initialDistance = Vector3.Distance(view.transform.position,transform.position);
+        initialOrtho = view.orthographicSize;
     }
 
     private void Zoom(float amount)

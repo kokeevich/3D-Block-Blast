@@ -1,114 +1,103 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// Лёгкая визуализация сетки поля. Старое поведение создавало 512 Cube-объектов,
-/// даже когда они были невидимы. Теперь вся сетка строится одним Mesh.
-/// </summary>
+/// <summary>Quiet outer frame, a floor reference and only the currently selected layer.</summary>
 public class VoxelField : MonoBehaviour
 {
-    [SerializeField] private int size = Field3D.Size;
-    [SerializeField] private float cellSize = 1f;
     [SerializeField] private bool visible = true;
-    [SerializeField] private Color lineColor = new Color(0.35f, 0.75f, 1f, 0.32f);
-
-    private Mesh gridMesh;
-    private MeshRenderer gridRenderer;
-    private Material runtimeMaterial;
+    private Field3D field;
+    private ActiveFigureController figure;
+    private Mesh frameMesh, floorMesh, layerMesh;
+    private MeshRenderer frameRenderer, floorRenderer, layerRenderer;
+    private readonly List<Material> materials = new List<Material>();
+    private int layerKey = int.MinValue;
+    private float Half => Field3D.Size*field.CellSize*0.5f;
 
     private void Start()
     {
-        var field = GetComponent<Field3D>();
-        if (field != null)
-        {
-            size = Field3D.Size;
-            cellSize = field.CellSize;
-        }
-
+        field = GetComponent<Field3D>();
+        figure = FindObjectOfType<ActiveFigureController>();
         HideLegacyFieldModel();
-        GenerateGrid();
+        frameMesh = CreateMesh("Board Frame",new Color(0.42f,0.56f,0.73f,0.72f),out frameRenderer);
+        floorMesh = CreateMesh("Floor Guide",new Color(0.28f,0.39f,0.55f,0.22f),out floorRenderer);
+        layerMesh = CreateMesh("Active Layer",new Color(0.32f,0.91f,0.78f,0.5f),out layerRenderer);
+        var vertices = new List<Vector3>();
+        for (int axis=0;axis<3;axis++)
+        for (int a=-1;a<=1;a+=2)
+        for (int b=-1;b<=1;b+=2)
+            Line(vertices,Point(axis,-Half,a*Half,b*Half),Point(axis,Half,a*Half,b*Half));
+        Upload(frameMesh,vertices);
+        vertices.Clear();
+        for (int i=0;i<=Field3D.Size;i++)
+        {
+            float p=-Half+i*field.CellSize;
+            Line(vertices,new Vector3(-Half,-Half,p),new Vector3(Half,-Half,p));
+            Line(vertices,new Vector3(p,-Half,-Half),new Vector3(p,-Half,Half));
+        }
+        Upload(floorMesh,vertices);
         SetVisibility(visible);
     }
-
     private void HideLegacyFieldModel()
     {
         if (transform.parent == null) return;
-
-        var legacyRenderers = transform.parent.GetComponentsInChildren<Renderer>(true);
-        foreach (var renderer in legacyRenderers)
+        foreach (var renderer in transform.parent.GetComponentsInChildren<Renderer>(true))
+            if (!renderer.transform.IsChildOf(transform)) renderer.enabled=false;
+    }
+    private void LateUpdate()
+    {
+        if (layerRenderer == null) return;
+        bool active=visible && figure != null && figure.HasActiveFigure && figure.Frame != null;
+        layerRenderer.enabled=active;
+        if (!active) { layerKey=int.MinValue; return; }
+        int axis=figure.Frame.DepthAxis;
+        Vector3Int position=figure.CurrentGridPosition;
+        int coordinate=axis==0 ? position.x : axis==1 ? position.y : position.z;
+        int key=axis*100+coordinate+(figure.Frame.NearSign>0 ? 1000 : 0);
+        if (key==layerKey) return;
+        layerKey=key;
+        float layer=-Half+(coordinate+0.5f+figure.Frame.NearSign*0.5f)*field.CellSize;
+        var vertices=new List<Vector3>();
+        for (int i=0;i<=Field3D.Size;i++)
         {
-            if (renderer != null && !renderer.transform.IsChildOf(transform))
-                renderer.enabled = false;
+            float p=-Half+i*field.CellSize;
+            Line(vertices,Point(axis,layer,-Half,p),Point(axis,layer,Half,p));
+            Line(vertices,Point(axis,layer,p,-Half),Point(axis,layer,p,Half));
         }
+        Upload(layerMesh,vertices);
     }
-
-    private void GenerateGrid()
+    private Mesh CreateMesh(string name,Color tint,out MeshRenderer renderer)
     {
-        var container = new GameObject("GridVisualization");
-        container.transform.SetParent(transform, false);
-
-        var filter = container.AddComponent<MeshFilter>();
-        gridRenderer = container.AddComponent<MeshRenderer>();
-
-        float half = size * cellSize * 0.5f;
-        var vertices = new List<Vector3>((size + 1) * (size + 1) * 6);
-        var indices = new List<int>((size + 1) * (size + 1) * 6);
-
-        for (int a = 0; a <= size; a++)
-        for (int b = 0; b <= size; b++)
-        {
-            float p1 = -half + a * cellSize;
-            float p2 = -half + b * cellSize;
-
-            AddLine(vertices, indices,
-                new Vector3(-half, p1, p2), new Vector3(half, p1, p2));
-            AddLine(vertices, indices,
-                new Vector3(p1, -half, p2), new Vector3(p1, half, p2));
-            AddLine(vertices, indices,
-                new Vector3(p1, p2, -half), new Vector3(p1, p2, half));
-        }
-
-        gridMesh = new Mesh { name = "Grid8x8x8" };
-        gridMesh.SetVertices(vertices);
-        gridMesh.SetIndices(indices, MeshTopology.Lines, 0);
-        gridMesh.RecalculateBounds();
-        filter.sharedMesh = gridMesh;
-
-        Shader shader = Shader.Find("Sprites/Default");
-        if (shader == null) shader = Shader.Find("Unlit/Color");
-        if (shader == null) shader = Shader.Find("Standard");
-
-        runtimeMaterial = new Material(shader)
-        {
-            name = "Runtime Grid Material",
-            color = lineColor
-        };
-        gridRenderer.sharedMaterial = runtimeMaterial;
+        var child=new GameObject(name); child.transform.SetParent(transform,false);
+        var mesh=new Mesh { name=name };
+        child.AddComponent<MeshFilter>().sharedMesh=mesh;
+        renderer=child.AddComponent<MeshRenderer>();
+        var material=new Material(Shader.Find("Sprites/Default")) { name=name+" Material",color=tint };
+        materials.Add(material); renderer.sharedMaterial=material;
+        renderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.receiveShadows=false;
+        return mesh;
     }
-
-    private static void AddLine(
-        List<Vector3> vertices,
-        List<int> indices,
-        Vector3 start,
-        Vector3 end)
+    private static Vector3 Point(int axis,float depth,float a,float b) => axis==0 ? new Vector3(depth,a,b) :
+        axis==1 ? new Vector3(a,depth,b) : new Vector3(a,b,depth);
+    private static void Line(List<Vector3> vertices,Vector3 a,Vector3 b) { vertices.Add(a); vertices.Add(b); }
+    private static void Upload(Mesh mesh,List<Vector3> vertices)
     {
-        int index = vertices.Count;
-        vertices.Add(start);
-        vertices.Add(end);
-        indices.Add(index);
-        indices.Add(index + 1);
+        mesh.Clear(); mesh.SetVertices(vertices);
+        var indices=new int[vertices.Count]; for (int i=0;i<indices.Length;i++) indices[i]=i;
+        mesh.SetIndices(indices,MeshTopology.Lines,0); mesh.RecalculateBounds();
     }
-
-    public void SetVisibility(bool isVisible)
+    public void SetVisibility(bool value)
     {
-        visible = isVisible;
-        if (gridRenderer != null)
-            gridRenderer.enabled = visible;
+        visible=value;
+        if (frameRenderer != null) frameRenderer.enabled=value;
+        if (floorRenderer != null) floorRenderer.enabled=value;
+        if (layerRenderer != null) layerRenderer.enabled=false;
     }
-
     private void OnDestroy()
     {
-        if (gridMesh != null) Destroy(gridMesh);
-        if (runtimeMaterial != null) Destroy(runtimeMaterial);
+        if (frameMesh != null) Destroy(frameMesh);
+        if (floorMesh != null) Destroy(floorMesh);
+        if (layerMesh != null) Destroy(layerMesh);
+        foreach (var material in materials) if (material != null) Destroy(material);
     }
 }

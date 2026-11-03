@@ -59,19 +59,8 @@ public class ShapePlacer : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
         // необходимые для размещения, нужно сохранить до блокировки.
         Vector3Int placementPosition = figureController.CurrentGridPosition;
 
-        // Снимаем активную фигуру
+        Color blockColor = figureController.ActiveColor;
         figureController.LockActiveFigure();
-
-        // Цвет блоков берём из фигуры
-        Color blockColor = Color.white;
-        var rnd = figureGo.GetComponentInChildren<MeshRenderer>();
-        if (rnd != null && rnd.material != null)
-        {
-            if (rnd.material.HasProperty("_BaseColor"))
-                blockColor = rnd.material.GetColor("_BaseColor");
-            else if (rnd.material.HasProperty("_Color"))
-                blockColor = rnd.material.GetColor("_Color");
-        }
 
         // Размещаем блоки на поле
         var blocks = field.PlaceShape(
