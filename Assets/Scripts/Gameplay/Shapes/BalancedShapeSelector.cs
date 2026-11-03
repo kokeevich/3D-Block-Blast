@@ -110,8 +110,8 @@ public class BalancedShapeSelector : MonoBehaviour
         if (field != null && !AnyRemainingShapeCanBePlaced()) OnNoValidPlacement?.Invoke();
     }
 
-    public static Color OfferColor(int index) => index % 3 == 0 ? new Color(0.22f,0.87f,0.78f) :
-        index % 3 == 1 ? new Color(0.65f,0.56f,1f) : new Color(1f,0.71f,0.34f);
+    public static Color OfferColor(int index) => index % 3 == 0 ? new Color(0.12f,0.68f,0.57f) :
+        index % 3 == 1 ? new Color(0.55f,0.43f,0.88f) : new Color(1f,0.61f,0.28f);
 
     private float Weight(string category)
     {

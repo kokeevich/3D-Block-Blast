@@ -29,6 +29,12 @@ public class ActiveFigureController : MonoBehaviour
     public ShapeInstanceData ActiveOffer => data;
     public int Depth => Frame == null ? 0 : Frame.Depth(ToCell(currentGridPosition));
 
+    public void SetPreviewColors(Color valid, Color invalid)
+    {
+        validColor=valid; invalidColor=invalid;
+        if (HasActiveFigure) RefreshGhost();
+    }
+
     public void SetField(Field3D value)
     {
         field = value;

@@ -11,7 +11,7 @@ public class ShapeThumbnailGraphic : MaskableGraphic
         cells = value == null ? new BoardModel.Cell[0] : (BoardModel.Cell[])value.Clone();
         Array.Sort(cells, (a, b) =>
         {
-            int order = (a.x + a.z).CompareTo(b.x + b.z);
+            int order = (a.x + a.y + a.z).CompareTo(b.x + b.y + b.z);
             return order != 0 ? order : a.y.CompareTo(b.y);
         });
         color = tint;
@@ -30,24 +30,31 @@ public class ShapeThumbnailGraphic : MaskableGraphic
             for (int z = 0; z <= 1; z++)
             { var p = Project(c.x+x, c.y+y, c.z+z); min = Vector2.Min(min,p); max = Vector2.Max(max,p); }
         var rect = GetPixelAdjustedRect();
-        float scale = Mathf.Min((rect.width-16)/Mathf.Max(1,max.x-min.x), (rect.height-16)/Mathf.Max(1,max.y-min.y));
+        if (rect.width <= 1 || rect.height <= 1) return;
+        float padding = Mathf.Min(rect.width,rect.height)*0.12f;
+        float scale = Mathf.Min((rect.width-padding*2)/Mathf.Max(1,max.x-min.x),
+            (rect.height-padding*2)/Mathf.Max(1,max.y-min.y));
+        // A one-cell offer should not inflate to fill the entire card.
+        scale = Mathf.Min(scale,Mathf.Min(rect.width,rect.height)*0.38f);
         Vector2 center = (min+max)*0.5f;
         foreach (var c in cells)
         {
             Vector2 p = (Project(c.x,c.y,c.z)-center)*scale + rect.center;
             Vector2 x = Project(1,0,0)*scale, y = Project(0,1,0)*scale, z = Project(0,0,1)*scale;
-            Face(mesh, p, p+z, p+z+y, p+y, Shade(color,0.66f));
-            Face(mesh, p, p+y, p+x+y, p+x, Shade(color,0.88f));
+            // The camera sees the +X and +Z faces. Drawing the two rear
+            // faces instead made the blocks look folded or partially missing.
+            Face(mesh, p+z, p+z+y, p+x+z+y, p+x+z, Shade(color,0.72f));
+            Face(mesh, p+x, p+x+z, p+x+z+y, p+x+y, Shade(color,0.90f));
             Face(mesh, p+y, p+z+y, p+x+z+y, p+x+y, Shade(color,1.12f));
         }
     }
     private static Color Shade(Color c, float factor) => new Color(c.r*factor,c.g*factor,c.b*factor,c.a);
     private static void Face(VertexHelper mesh, Vector2 a, Vector2 b, Vector2 c, Vector2 d, Color tint)
     {
-        AddQuad(mesh,a,b,c,d,new Color(0.03f,0.06f,0.12f,tint.a));
+        AddQuad(mesh,a,b,c,d,new Color(tint.r*0.58f,tint.g*0.58f,tint.b*0.58f,tint.a));
         Vector2 center = (a+b+c+d)*0.25f;
-        AddQuad(mesh,Vector2.Lerp(a,center,0.065f),Vector2.Lerp(b,center,0.065f),
-            Vector2.Lerp(c,center,0.065f),Vector2.Lerp(d,center,0.065f),tint);
+        AddQuad(mesh,Vector2.Lerp(a,center,0.045f),Vector2.Lerp(b,center,0.045f),
+            Vector2.Lerp(c,center,0.045f),Vector2.Lerp(d,center,0.045f),tint);
     }
     private static void AddQuad(VertexHelper mesh, Vector2 a, Vector2 b, Vector2 c, Vector2 d, Color tint)
     {

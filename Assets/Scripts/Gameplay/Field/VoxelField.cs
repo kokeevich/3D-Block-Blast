@@ -18,9 +18,9 @@ public class VoxelField : MonoBehaviour
         field = GetComponent<Field3D>();
         figure = FindObjectOfType<ActiveFigureController>();
         HideLegacyFieldModel();
-        frameMesh = CreateMesh("Board Frame",new Color(0.42f,0.56f,0.73f,0.72f),out frameRenderer);
-        floorMesh = CreateMesh("Floor Guide",new Color(0.28f,0.39f,0.55f,0.22f),out floorRenderer);
-        layerMesh = CreateMesh("Active Layer",new Color(0.32f,0.91f,0.78f,0.5f),out layerRenderer);
+        frameMesh = CreateMesh("Board Frame",new Color(0.30f,0.48f,0.47f,0.72f),out frameRenderer);
+        floorMesh = CreateMesh("Floor Guide",new Color(0.26f,0.46f,0.43f,0.25f),out floorRenderer);
+        layerMesh = CreateMesh("Active Layer",new Color(0.08f,0.58f,0.42f,0.55f),out layerRenderer);
         var vertices = new List<Vector3>();
         for (int axis=0;axis<3;axis++)
         for (int a=-1;a<=1;a+=2)

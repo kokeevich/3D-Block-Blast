@@ -124,3 +124,19 @@ compile against the actual Unity 2022.3.62f3 assemblies (including its matching
 UGUI and test-runner references). Scene/UI interaction tests remain unrun in the
 cloud because the editor has no activated license. Compilation does not verify
 raycast results, visual appearance, shader rendering or touch behavior.
+
+
+### Friendly theme and thumbnail silhouette regression
+
+The HUD now uses a light cream/mint background, white surfaces, dark readable
+text and teal/lilac/apricot offers. Cube edges, active-layer grid and ghost
+colors are tuned for the light background as well.
+
+`ShapeThumbnailTests` checks a complete centered single-cube silhouette with
+isometric width/height ratio, and verifies padding/centering for a tall/wide
+shape through all 24 rotations. The renderer now draws the visible +X/+Z side
+faces (the previous rear faces omitted the lower front corner), sorts by all
+three coordinates, and caps enlargement of single-cell figures. These tests
+compile against Unity's actual assemblies but remain unrun without an Editor
+license. Check tall and wide thumbnails on the phone for clipping, face order,
+consistent scale, label separation and selected-card contrast.

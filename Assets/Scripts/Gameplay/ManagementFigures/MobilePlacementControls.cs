@@ -5,10 +5,12 @@ using UnityEngine.UI;
 /// <summary>The game HUD owns explicit, raycastable offer cards and placement actions.</summary>
 public class MobilePlacementControls : MonoBehaviour
 {
-    private static readonly Color Background = new Color(0.035f,0.055f,0.10f);
-    private static readonly Color PanelColor = new Color(0.065f,0.09f,0.15f);
-    private static readonly Color Muted = new Color(0.49f,0.57f,0.69f);
-    private static readonly Color Accent = new Color(0.32f,0.91f,0.78f);
+    private static readonly Color Background = new Color(0.955f,0.975f,0.945f);
+    private static readonly Color PanelColor = new Color(1f,1f,0.99f);
+    private static readonly Color Muted = new Color(0.35f,0.45f,0.45f);
+    private static readonly Color Accent = new Color(0.06f,0.45f,0.35f);
+    private static readonly Color Ink = new Color(0.16f,0.25f,0.27f);
+    private static readonly Color SoftButton = new Color(0.88f,0.94f,0.92f);
     private ActiveFigureController figure;
     private ShapePlacer placer;
     private GameManager game;
@@ -42,6 +44,7 @@ public class MobilePlacementControls : MonoBehaviour
         field = FindObjectOfType<Field3D>();
         font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         MakeRoundedSprite();
+        if (figure != null) figure.SetPreviewColors(new Color(0.08f,0.68f,0.43f),new Color(0.94f,0.31f,0.23f));
         // Preserve gameplay components inside the old Canvas, while replacing
         // its wallpaper, world-space previews and invisible hit regions.
         foreach (var oldCanvas in FindObjectsOfType<Canvas>())
@@ -77,12 +80,12 @@ public class MobilePlacementControls : MonoBehaviour
         hud.pivot = new Vector2(0.5f,1);
         Label("Brand",hud,"BLOCK BLAST",new Vector2(0,0.77f),new Vector2(0.70f,1),42,Muted,TextAnchor.MiddleLeft,true);
         Label("ScoreCaption",hud,"СЧЁТ",new Vector2(0,0.55f),new Vector2(0.4f,0.74f),30,Muted,TextAnchor.MiddleLeft);
-        scoreText = Label("Score",hud,"0",new Vector2(0,0.08f),new Vector2(0.6f,0.58f),104,Color.white,TextAnchor.MiddleLeft,true);
+        scoreText = Label("Score",hud,"0",new Vector2(0,0.08f),new Vector2(0.6f,0.58f),104,Ink,TextAnchor.MiddleLeft,true);
         var record = Box("RecordPill",hud,new Vector2(0.70f,0.35f),new Vector2(1,0.94f),PanelColor);
         Label("Caption",record,"РЕКОРД",new Vector2(0,0.55f),Vector2.one,28,Muted);
         recordText = Label("Record",record,"0",new Vector2(0,0.04f),new Vector2(1,0.62f),38,Accent,TextAnchor.MiddleCenter,true);
         gainText = Label("ScoreGain",hud,"",new Vector2(0.3f,0.14f),new Vector2(0.65f,0.6f),34,Accent,TextAnchor.MiddleLeft,true);
-        modeText = Label("Mode",safeRoot,"ВЫБЕРИТЕ ФИГУРУ",new Vector2(0.1f,0.815f),new Vector2(0.9f,0.85f),32,Accent);
+        modeText = Label("Mode",safeRoot,"Выберите фигуру",new Vector2(0.1f,0.815f),new Vector2(0.9f,0.85f),32,Accent);
         hint = Label("Hint",safeRoot,"Вращайте куб одним пальцем",new Vector2(0.06f,0.775f),new Vector2(0.94f,0.813f),36,Muted);
     }
 
@@ -97,7 +100,7 @@ public class MobilePlacementControls : MonoBehaviour
             int index = i;
             float left = 0.025f + i*0.325f;
             cards[i] = Button("OfferCard_"+i,tray,"",new Vector2(left,0.55f),new Vector2(left+0.30f,0.89f),
-                new Color(0.10f,0.135f,0.21f),Color.white,() => game.TrySelectOffer(index));
+                SoftButton,Ink,() => game.TrySelectOffer(index));
             cardBackgrounds[i] = cards[i].GetComponent<Image>();
             cardBorders[i] = cards[i].gameObject.AddComponent<Outline>();
             cardBorders[i].effectDistance = new Vector2(2,-2);
@@ -108,7 +111,7 @@ public class MobilePlacementControls : MonoBehaviour
             cardLabels[i] = Label("OfferLabel",cards[i].transform,"",new Vector2(0,0.02f),new Vector2(1,0.22f),34,Muted);
         }
         browseHelp = Rect("BrowseHelp",tray,new Vector2(0.04f,0.03f),new Vector2(0.96f,0.46f)).gameObject;
-        Label("Instruction",browseHelp.transform,"Выберите фигуру и найдите ей место",new Vector2(0,0.55f),Vector2.one,40,Color.white);
+        Label("Instruction",browseHelp.transform,"Выберите фигуру и найдите ей место",new Vector2(0,0.55f),Vector2.one,40,Ink);
         Label("Rule",browseHelp.transform,"Соберите 8 блоков в линию, чтобы её очистить",new Vector2(0,0.24f),new Vector2(1,0.6f),34,Muted);
         Label("Gestures",browseHelp.transform,"Один палец — вращение   ·   Два — масштаб",Vector2.zero,new Vector2(1,0.3f),30,Muted);
         placementActions = Rect("PlacementActions",tray,Vector2.zero,new Vector2(1,0.53f)).gameObject;
@@ -120,28 +123,28 @@ public class MobilePlacementControls : MonoBehaviour
             int layer = i;
             float x = 0.027f+i*0.119f;
             layers[i] = Button("Layer_"+i,actions,(i+1).ToString(),new Vector2(x,0.48f),new Vector2(x+0.108f,0.79f),
-                new Color(0.10f,0.14f,0.22f),Muted,() => { if (CanInteract) figure.SetDepth(layer); });
+                SoftButton,Muted,() => { if (CanInteract) figure.SetDepth(layer); });
         }
         rotateHorizontal = Button("RotateSide",actions,"↻ Вбок",new Vector2(0.027f,0.07f),new Vector2(0.185f,0.40f),
-            new Color(0.13f,0.18f,0.27f),Color.white,() => { if (CanInteract) figure.Rotate(figure.Frame.VerticalAxis); });
+            SoftButton,Ink,() => { if (CanInteract) figure.Rotate(figure.Frame.VerticalAxis); });
         rotateVertical = Button("RotateUp",actions,"↻ Вверх",new Vector2(0.20f,0.07f),new Vector2(0.358f,0.40f),
-            new Color(0.13f,0.18f,0.27f),Color.white,() => { if (CanInteract) figure.Rotate(figure.Frame.HorizontalAxis); });
+            SoftButton,Ink,() => { if (CanInteract) figure.Rotate(figure.Frame.HorizontalAxis); });
         cancel = Button("Cancel",actions,"Отмена",new Vector2(0.38f,0.07f),new Vector2(0.57f,0.40f),
-            new Color(0.13f,0.18f,0.27f),Color.white,() => { if (CanInteract) game.CancelSelection(); });
+            SoftButton,Ink,() => { if (CanInteract) game.CancelSelection(); });
         place = Button("ConfirmPlacement",actions,"Поставить",new Vector2(0.59f,0.07f),new Vector2(0.973f,0.40f),
-            Accent,Background,() => { if (CanInteract) placer.TryPlaceActive(); });
+            Accent,Color.white,() => { if (CanInteract) placer.TryPlaceActive(); });
         placementActions.SetActive(false);
     }
 
     private void BuildGameOver()
     {
-        gameOver = Box("GameOverOverlay",safeRoot,Vector2.zero,Vector2.one,new Color(0.015f,0.025f,0.05f,0.92f)).gameObject;
+        gameOver = Box("GameOverOverlay",safeRoot,Vector2.zero,Vector2.one,new Color(0.89f,0.95f,0.91f,0.96f)).gameObject;
         gameOver.GetComponent<Image>().raycastTarget = true;
         var card = Box("GameOverCard",gameOver.transform,new Vector2(0.08f,0.30f),new Vector2(0.92f,0.69f),PanelColor);
-        Label("Title",card,"Хорошая партия!",new Vector2(0.04f,0.72f),new Vector2(0.96f,0.94f),48,Color.white,TextAnchor.MiddleCenter,true);
+        Label("Title",card,"Хорошая партия!",new Vector2(0.04f,0.72f),new Vector2(0.96f,0.94f),48,Ink,TextAnchor.MiddleCenter,true);
         Label("Caption",card,"Больше нет места для оставшихся фигур",new Vector2(0.05f,0.56f),new Vector2(0.95f,0.75f),36,Muted);
         finalScore = Label("FinalScore",card,"0",new Vector2(0,0.25f),new Vector2(1,0.58f),86,Accent,TextAnchor.MiddleCenter,true);
-        Button("Restart",card,"Ещё раз",new Vector2(0.1f,0.07f),new Vector2(0.9f,0.25f),Accent,Background,game.RestartGame);
+        Button("Restart",card,"Ещё раз",new Vector2(0.1f,0.07f),new Vector2(0.9f,0.25f),Accent,Color.white,game.RestartGame);
         gameOver.SetActive(false);
     }
 
@@ -165,13 +168,13 @@ public class MobilePlacementControls : MonoBehaviour
         for (int i = 0; i < layers.Length; i++)
         {
             layers[i].interactable = active;
-            layers[i].GetComponent<Image>().color = figure.HasActiveFigure && figure.Depth == i ? Accent : new Color(0.10f,0.14f,0.22f);
-            layers[i].GetComponentInChildren<Text>().color = figure.HasActiveFigure && figure.Depth == i ? Background : Muted;
+            layers[i].GetComponent<Image>().color = figure.HasActiveFigure && figure.Depth == i ? Accent : SoftButton;
+            layers[i].GetComponentInChildren<Text>().color = figure.HasActiveFigure && figure.Depth == i ? Color.white : Muted;
         }
         depthText.text = (figure.Depth+1)+" / 8";
-        modeText.text = game.IsGameOver ? "ПАРТИЯ ЗАВЕРШЕНА" : placer.IsResolving ? "ОТЛИЧНЫЙ ХОД" :
-            !figure.HasActiveFigure ? "ВЫБЕРИТЕ ФИГУРУ" : figure.CanPlaceAtCurrent() ? "МОЖНО ПОСТАВИТЬ" : "НУЖНО ДРУГОЕ МЕСТО";
-        modeText.color = figure.HasActiveFigure && !figure.CanPlaceAtCurrent() ? new Color(1,0.55f,0.47f) : Accent;
+        modeText.text = game.IsGameOver ? "Спасибо за игру!" : placer.IsResolving ? "Отличный ход!" :
+            !figure.HasActiveFigure ? "Выберите фигуру" : figure.CanPlaceAtCurrent() ? "Отличное место!" : "Попробуем другое место";
+        modeText.color = figure.HasActiveFigure && !figure.CanPlaceAtCurrent() ? new Color(0.78f,0.26f,0.20f) : Accent;
         hint.text = placer.IsResolving ? "" : !figure.HasActiveFigure ? "Вращайте куб одним пальцем" :
             figure.CanPlaceAtCurrent() ? "Двигайте фигуру • меняйте глубину" : "Сдвиньте фигуру или смените глубину";
         RefreshOffers();
@@ -199,10 +202,11 @@ public class MobilePlacementControls : MonoBehaviour
             bool redraw = offer != drawnOffers[i] || rotation != drawnRotations[i] || game.Score != lastScore;
             if (redraw) offerFits[i] = offer != null && selector.CanPlaceShapeAnywhere(i);
             cards[i].interactable = offer != null && offerFits[i] && game.CanSelectShape;
-            cardBorders[i].effectColor = selected ? offer.color : Color.clear;
-            cardBackgrounds[i].color = selected ? new Color(0.12f,0.21f,0.26f) : new Color(0.10f,0.135f,0.21f);
+            cardBorders[i].effectColor = selected ? Accent : Color.clear;
+            cardBackgrounds[i].color = offer == null ? new Color(0.94f,0.96f,0.94f) :
+                Color.Lerp(Color.white,offer.color,selected ? 0.25f : 0.10f);
             cardLabels[i].text = offer == null ? "Готово" : selected ? "Выбрано" : !offerFits[i] ? "Нет места" : offer.baseCells.Length+" блок.";
-            cardLabels[i].color = selected ? offer.color : Muted;
+            cardLabels[i].color = selected ? Accent : Muted;
             if (redraw)
             {
                 drawnOffers[i] = offer; drawnRotations[i] = rotation;
@@ -250,7 +254,7 @@ public class MobilePlacementControls : MonoBehaviour
         view.transform.position = field.transform.position-rotation*Vector3.forward*distance-
             rotation*Vector3.up*(2*distance*tan*(centerY-0.5f))-
             rotation*Vector3.right*(2*distance*tan*view.aspect*(centerX-0.5f));
-        RenderSettings.ambientLight = new Color(0.42f,0.50f,0.65f);
+        RenderSettings.ambientLight = new Color(0.72f,0.78f,0.74f);
         var rotator = field.GetComponent<FieldRotator>();
         if (rotator != null) rotator.RefreshZoomLimits();
     }
@@ -261,7 +265,7 @@ public class MobilePlacementControls : MonoBehaviour
         var image = rect.GetComponent<Image>(); image.raycastTarget = true;
         var button = rect.gameObject.AddComponent<Button>(); button.targetGraphic = image;
         var colors = button.colors;
-        colors.highlightedColor = new Color(1.13f,1.13f,1.13f); colors.pressedColor = new Color(0.75f,0.87f,0.90f);
+        colors.highlightedColor = new Color(0.97f,1f,0.98f); colors.pressedColor = new Color(0.83f,0.94f,0.88f);
         colors.selectedColor = Color.white; colors.disabledColor = new Color(0.65f,0.70f,0.78f,0.7f);
         button.colors = colors; button.navigation = new Navigation { mode = Navigation.Mode.None };
         button.onClick.AddListener(action);
