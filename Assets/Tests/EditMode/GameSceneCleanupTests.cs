@@ -49,5 +49,24 @@ public class GameSceneCleanupTests
         }
         finally { EditorSceneManager.CloseScene(scene,true); }
     }
+    [Test]
+    public void MainMenuUsesTheCurrentControllerAndBothSceneRoutesAreBuilt()
+    {
+        const string path="Assets/Scenes/MainMenu.unity";
+        if (SceneManager.GetSceneByPath(path).isLoaded) Assert.Ignore("Open a different scene before this asset-only test.");
+        var scene=EditorSceneManager.OpenScene(path,OpenSceneMode.Additive);
+        try
+        {
+            var roots=scene.GetRootGameObjects();
+            Assert.IsEmpty(roots.SelectMany(go => go.GetComponentsInChildren<Canvas>(true)).ToArray());
+            var controller=roots.Single(go => go.name=="MainMenuController");
+            Assert.IsNotNull(controller.GetComponent(Type.GetType("MainMenuController, Assembly-CSharp",true)));
+            var view=roots.Single(go => go.name=="Main Camera").GetComponent<Camera>();
+            Assert.AreEqual(CameraClearFlags.SolidColor,view.clearFlags);
+            foreach (var name in new[] { "MainMenu","Game" })
+                Assert.IsTrue(EditorBuildSettings.scenes.Any(s => s.enabled && s.path=="Assets/Scenes/"+name+".unity"));
+        }
+        finally { EditorSceneManager.CloseScene(scene,true); }
+    }
 }
 #endif

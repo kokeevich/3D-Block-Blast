@@ -44,20 +44,24 @@ public class FieldRotator : MonoBehaviour
         }
     }
 
-    private bool Blocked => (placer != null && placer.IsResolving) || (game != null && game.IsGameOver);
+    private bool Blocked => (placer != null && placer.IsResolving) || (game != null && game.InputBlocked);
     private bool InZone(Vector2 position) => controls!=null && controls.IsBoardArea(position);
 
     private void Update()
     {
-        if (IsRotating)
+        if (IsRotating && (game==null || !game.InputBlocked))
         {
             rotationTime+=Time.unscaledDeltaTime;
             float progress=Mathf.Clamp01(rotationTime/Mathf.Max(0.01f,animationTime));
             transform.rotation=Quaternion.Slerp(rotationStart,rotationTarget,Mathf.SmoothStep(0,1,progress));
-            if (progress>=1) { transform.rotation=rotationTarget; IsRotating=false; }
+            if (progress>=1)
+            {
+                transform.rotation=rotationTarget; IsRotating=false;
+                if (game!=null) game.NotifyTutorialAction(TutorialProgress.Action.RotateBoard);
+            }
         }
         if (controls == null) controls = FindObjectOfType<MobilePlacementControls>();
-        if (view == null || Blocked) { dragging = false; pinching = false; return; }
+        if (view == null || Blocked) { dragging = false; pinching = false; suppressUntilReleased=true; return; }
         if (Input.touchCount >= 2)
         {
             dragging = false;

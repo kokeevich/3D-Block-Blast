@@ -11,6 +11,13 @@ using UnityEngine.UI;
 
 public class OfferInteractionTests
 {
+    [SetUp] public void SavePlayerPreferences() { PreferenceTestScope.Save("OfferTests."); }
+    [UnityTearDown] public IEnumerator RestorePlayerPreferences()
+    {
+        if (Application.isPlaying) yield return new ExitPlayMode();
+        PreferenceTestScope.Restore("OfferTests.");
+    }
+
     [UnityTest]
     public IEnumerator VisibleOfferReceivesClickAndCreatesAnActiveFigure()
     {
@@ -18,6 +25,7 @@ public class OfferInteractionTests
         yield return SceneManager.LoadSceneAsync("Game");
         yield return null;
         yield return null; // first offer set is generated after Start binding
+        SkipGuideForTest();
         Canvas.ForceUpdateCanvases();
 
         var controllerType = Type.GetType("ActiveFigureController, Assembly-CSharp", true);
@@ -66,6 +74,7 @@ public class OfferInteractionTests
         yield return new EnterPlayMode();
         yield return SceneManager.LoadSceneAsync("Game");
         yield return null; yield return null;
+        SkipGuideForTest();
         var type=Type.GetType("FieldRotator, Assembly-CSharp",true);
         var rotator=(Component)UnityEngine.Object.FindObjectOfType(type);
         var managerType=Type.GetType("GameManager, Assembly-CSharp",true);
@@ -89,6 +98,7 @@ public class OfferInteractionTests
         yield return new EnterPlayMode();
         yield return SceneManager.LoadSceneAsync("Game");
         yield return null; yield return null;
+        SkipGuideForTest();
         var fieldType=Type.GetType("Field3D, Assembly-CSharp",true);
         var field=UnityEngine.Object.FindObjectOfType(fieldType);
         var board=(BoardModel)fieldType.GetProperty("Model").GetValue(field);
@@ -111,6 +121,7 @@ public class OfferInteractionTests
         yield return new EnterPlayMode();
         yield return SceneManager.LoadSceneAsync("Game");
         yield return null; yield return null;
+        SkipGuideForTest();
         var managerType=Type.GetType("GameManager, Assembly-CSharp",true);
         var manager=UnityEngine.Object.FindObjectOfType(managerType);
         var controllerType=Type.GetType("ActiveFigureController, Assembly-CSharp",true);
@@ -144,6 +155,7 @@ public class OfferInteractionTests
         yield return new EnterPlayMode();
         yield return SceneManager.LoadSceneAsync("Game");
         yield return null; yield return null;
+        SkipGuideForTest();
         var managerType=Type.GetType("GameManager, Assembly-CSharp",true);
         var manager=UnityEngine.Object.FindObjectOfType(managerType);
         Assert.IsTrue((bool)managerType.GetMethod("TrySelectOffer").Invoke(manager,new object[] { 0 }));
@@ -211,6 +223,13 @@ public class OfferInteractionTests
         Assert.AreEqual(BlockVisibilityRules.Style.Solid,visibilityType.GetMethod("GetCellStyle").Invoke(visibility,new object[] { coordinates[1] }));
         Assert.AreEqual(free+2,board.CountFreeCells());
         yield return new ExitPlayMode();
+    }
+
+    private static void SkipGuideForTest()
+    {
+        var type=Type.GetType("GameManager, Assembly-CSharp",true);
+        var game=UnityEngine.Object.FindObjectOfType(type);
+        type.GetMethod("SkipTutorial").Invoke(game,new object[] { false });
     }
 
     private static void ClickVisibleButton(Button button)

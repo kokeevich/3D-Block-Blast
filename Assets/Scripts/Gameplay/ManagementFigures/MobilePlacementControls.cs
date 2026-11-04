@@ -5,19 +5,19 @@ using UnityEngine.UI;
 /// <summary>The game HUD owns explicit, raycastable offer cards and placement actions.</summary>
 public class MobilePlacementControls : MonoBehaviour
 {
-    private static readonly Color Background = new Color(0.68f,0.76f,0.73f);
-    private static readonly Color PanelColor = new Color(0.80f,0.86f,0.82f);
-    private static readonly Color Muted = new Color(0.25f,0.35f,0.34f);
-    private static readonly Color Accent = new Color(0.04f,0.36f,0.28f);
-    private static readonly Color Ink = new Color(0.12f,0.21f,0.22f);
-    private static readonly Color SoftButton = new Color(0.71f,0.80f,0.76f);
+    private static readonly Color Background = GameTheme.Background;
+    private static readonly Color PanelColor = GameTheme.Panel;
+    private static readonly Color Muted = GameTheme.Muted;
+    private static readonly Color Accent = GameTheme.Accent;
+    private static readonly Color Ink = GameTheme.Ink;
+    private static readonly Color SoftButton = GameTheme.SoftButton;
     private ActiveFigureController figure;
     private ShapePlacer placer;
     private GameManager game;
     private BalancedShapeSelector selector;
     private Field3D field;
     private BoardVisibility visibility;
-    private Button xrayToggle;
+    private Button xrayToggle,pauseButton;
     private Text xrayLabel;
     private GameObject canvasObject;
     private Canvas canvas;
@@ -68,12 +68,13 @@ public class MobilePlacementControls : MonoBehaviour
     {
         hud = Rect("Header",safeRoot,new Vector2(0,1),Vector2.one,new Vector2(-88,260),new Vector2(0,-24));
         hud.pivot = new Vector2(0.5f,1);
-        brandText=Label("Brand",hud,"BLOCK BLAST",new Vector2(0,0.77f),new Vector2(0.70f,1),42,Muted,TextAnchor.MiddleLeft,true);
+        brandText=Label("Brand",hud,"BLOCK BLAST",new Vector2(0,0.77f),new Vector2(0.44f,1),42,Muted,TextAnchor.MiddleLeft,true);
         Label("ScoreCaption",hud,"СЧЁТ",new Vector2(0,0.55f),new Vector2(0.4f,0.74f),30,Muted,TextAnchor.MiddleLeft);
         scoreText = Label("Score",hud,"0",new Vector2(0,0.08f),new Vector2(0.6f,0.58f),104,Ink,TextAnchor.MiddleLeft,true);
         var record = Box("RecordPill",hud,new Vector2(0.70f,0.56f),new Vector2(1,0.99f),PanelColor);
         Label("Caption",record,"РЕКОРД",new Vector2(0,0.55f),Vector2.one,28,Muted);
         recordText = Label("Record",record,"0",new Vector2(0,0.04f),new Vector2(1,0.62f),38,Accent,TextAnchor.MiddleCenter,true);
+        pauseButton=Button("PauseGame",hud,"Пауза",new Vector2(0.49f,0.45f),new Vector2(0.66f,0.99f),SoftButton,Ink,game.PauseGame);
         xrayToggle=Button("XRayToggle",hud,"Рентген: выкл",new Vector2(0.70f,0.02f),new Vector2(1,0.50f),
             SoftButton,Ink,() => { if (visibility!=null && visibility.isActiveAndEnabled && !game.IsGameOver) visibility.ToggleXRay(); });
         xrayLabel=xrayToggle.GetComponentInChildren<Text>();
@@ -138,13 +139,14 @@ public class MobilePlacementControls : MonoBehaviour
         Label("Caption",card,"Больше нет места для оставшихся фигур",new Vector2(0.05f,0.72f),new Vector2(0.95f,0.83f),36,Muted);
         finalScore = Label("FinalScore",card,"0",new Vector2(0,0.49f),new Vector2(1,0.71f),80,Accent,TextAnchor.MiddleCenter,true);
         finalStatistics=Label("FinalStatistics",card,"",new Vector2(0.06f,0.22f),new Vector2(0.94f,0.49f),34,Ink);
-        Button("Restart",card,"Ещё раз",new Vector2(0.1f,0.06f),new Vector2(0.9f,0.18f),Accent,Color.white,game.RestartGame);
+        Button("Restart",card,"Ещё раз",new Vector2(0.1f,0.04f),new Vector2(0.48f,0.18f),Accent,Color.white,game.RestartGame);
+        Button("GameOverMenu",card,"В меню",new Vector2(0.52f,0.04f),new Vector2(0.9f,0.18f),SoftButton,Ink,game.ReturnToMenu);
         gameOver.SetActive(false);
     }
 
-    private bool CanInteract => figure != null && figure.HasActiveFigure && placer != null && !placer.IsResolving && !game.IsGameOver;
+    private bool CanInteract => figure != null && figure.HasActiveFigure && placer != null && !placer.IsResolving && !game.InputBlocked && game.Tutorial.CanManipulate;
     public bool Contains(Vector2 position) => tray != null && RectTransformUtility.RectangleContainsScreenPoint(tray,position);
-    public bool IsBoardArea(Vector2 position) => boardArea != null && !game.IsGameOver && !Contains(position) &&
+    public bool IsBoardArea(Vector2 position) => boardArea != null && !game.InputBlocked && !Contains(position) &&
         RectTransformUtility.RectangleContainsScreenPoint(boardArea,position);
 
     private void Update()
@@ -154,8 +156,9 @@ public class MobilePlacementControls : MonoBehaviour
         safeRoot.anchorMin = new Vector2(safe.xMin/Mathf.Max(1,Screen.width),safe.yMin/Mathf.Max(1,Screen.height));
         safeRoot.anchorMax = new Vector2(safe.xMax/Mathf.Max(1,Screen.width),safe.yMax/Mathf.Max(1,Screen.height));
         if (screenWidth != Screen.width || screenHeight != Screen.height) ConfigureView();
+        pauseButton.interactable=!game.IsGameOver && !game.Transitioning;
         bool xray=visibility!=null && visibility.XRayEnabled;
-        xrayToggle.interactable=visibility!=null && visibility.isActiveAndEnabled && !game.IsGameOver;
+        xrayToggle.interactable=visibility!=null && visibility.isActiveAndEnabled && !game.InputBlocked;
         xrayToggle.GetComponent<Image>().color=xray ? Accent : SoftButton;
         xrayLabel.text=xray ? "Рентген: вкл" : "Рентген: выкл";
         xrayLabel.color=xray ? Color.white : Ink;
@@ -163,7 +166,7 @@ public class MobilePlacementControls : MonoBehaviour
         placementActions.SetActive(figure.HasActiveFigure);
         browseHelp.SetActive(!figure.HasActiveFigure);
         rotateHorizontal.interactable = rotateVertical.interactable = cancel.interactable = active;
-        place.interactable = active && figure.CanPlaceAtCurrent();
+        place.interactable = active && game.CanPlace && figure.CanPlaceAtCurrent();
         for (int i = 0; i < layers.Length; i++)
         {
             layers[i].interactable = active;
@@ -179,13 +182,24 @@ public class MobilePlacementControls : MonoBehaviour
         if (xray && !placer.IsResolving && !game.IsGameOver)
             hint.text=!figure.HasActiveFigure ? "Рентген: видны внутренние блоки" : figure.CanPlaceAtCurrent() ?
                 "Выделен слой "+(figure.Depth+1)+" — остальные прозрачны" : hint.text;
+        if (game.Tutorial.Active && !game.Tutorial.IsIntro)
+        {
+            modeText.text="Обучение · "+game.Tutorial.Number+" / 5";
+            hint.text=placer.IsResolving ? "Размещаем фигуру…" :
+                game.Tutorial.Current>=TutorialProgress.Step.MoveShape && !figure.HasActiveFigure ?
+                "Выберите фигуру, чтобы продолжить обучение" : game.Tutorial.Instruction;
+        }
+        else if (!game.IsGameOver && Time.unscaledTime-game.TutorialFinishedAt<4)
+        { modeText.text="Обучение пройдено!"; hint.text="Теперь собирайте линии по трём направлениям"; }
+        else if (!game.IsGameOver && game.LastClearedLines>=2 && Time.unscaledTime-game.LastMoveAt<2 && !figure.HasActiveFigure)
+        { modeText.text="Комбо ×"+game.LastClearedLines; hint.text="Несколько линий за один ход!"; }
         RefreshOffers();
-        displayedScore = Mathf.MoveTowards(displayedScore,game.Score,Mathf.Max(30,Mathf.Abs(game.Score-displayedScore)*8)*Time.unscaledDeltaTime);
+        displayedScore = Mathf.MoveTowards(displayedScore,game.Score,Mathf.Max(30,Mathf.Abs(game.Score-displayedScore)*8)*Time.deltaTime);
         scoreText.text = Mathf.RoundToInt(displayedScore).ToString();
         recordText.text = Mathf.Max(game.BestScore,game.Score).ToString();
         if (game.Score > lastScore)
         { gainText.text = "+"+(game.Score-lastScore); lastScore = game.Score; gainTime = 1; }
-        gainTime = Mathf.Max(0,gainTime-Time.unscaledDeltaTime);
+        gainTime = Mathf.Max(0,gainTime-Time.deltaTime);
         gainText.color = new Color(Accent.r,Accent.g,Accent.b,gainTime);
         gameOver.SetActive(game.IsGameOver);
         if (game.IsGameOver)
@@ -249,6 +263,9 @@ public class MobilePlacementControls : MonoBehaviour
             modeText.rectTransform.anchorMin = new Vector2(0.10f,0.815f); modeText.rectTransform.anchorMax = new Vector2(0.90f,0.85f);
             hint.rectTransform.anchorMin = new Vector2(0.06f,0.775f); hint.rectTransform.anchorMax = new Vector2(0.94f,0.813f);
         }
+        pauseButton.GetComponentInChildren<Text>().fontSize=landscape ? 24 : 34;
+        modeText.fontSize=landscape ? 20 : 32;
+        hint.fontSize=landscape ? 24 : 36;
         brandText.fontSize=landscape ? 34 : 42;
         scoreText.fontSize=landscape ? 72 : 104;
         recordText.fontSize=landscape ? 34 : 38;
@@ -277,7 +294,7 @@ public class MobilePlacementControls : MonoBehaviour
         colors.highlightedColor = new Color(0.97f,1f,0.98f); colors.pressedColor = new Color(0.83f,0.94f,0.88f);
         colors.selectedColor = Color.white; colors.disabledColor = new Color(0.65f,0.70f,0.78f,0.7f);
         button.colors = colors; button.navigation = new Navigation { mode = Navigation.Mode.None };
-        button.onClick.AddListener(action);
+        button.onClick.AddListener(() => { action(); UIAudio.Click(); });
         if (!string.IsNullOrEmpty(title)) Label("Label",rect,title,new Vector2(0.03f,0.02f),new Vector2(0.97f,0.98f),34,foreground,TextAnchor.MiddleCenter,true);
         return button;
     }

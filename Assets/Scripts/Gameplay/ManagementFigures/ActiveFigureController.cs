@@ -10,7 +10,10 @@ public class ActiveFigureController : MonoBehaviour
     [SerializeField] private Color validColor = new Color(0.4f, 0.95f, 0.4f, 0.55f);
     [SerializeField] private Color invalidColor = new Color(0.95f, 0.4f, 0.4f, 0.65f);
 
+    private GameManager game;
     private GameObject activeFigure;
+    private void Awake() { game=FindObjectOfType<GameManager>(); }
+    private bool InteractionBlocked => game!=null && (game.InputBlocked || !game.Tutorial.CanManipulate);
     private FigureGridShape gridShape;
     private ShapeInstanceData data;
     private Vector3Int currentGridPosition;
@@ -86,9 +89,16 @@ public class ActiveFigureController : MonoBehaviour
 
     public void SetGridPosition(Vector3Int position)
     {
-        if (!HasActiveFigure) return;
+        if (!HasActiveFigure || InteractionBlocked) return;
+        var previous=currentGridPosition;
         currentGridPosition = new Vector3Int(Mathf.Clamp(position.x, 0, 7), Mathf.Clamp(position.y, 0, 7), Mathf.Clamp(position.z, 0, 7));
         RefreshGhost();
+        if (currentGridPosition!=previous && Frame!=null && game!=null)
+        {
+            int a=Frame.DepthAxis;
+            bool depth=a==0 ? previous.x!=currentGridPosition.x : a==1 ? previous.y!=currentGridPosition.y : previous.z!=currentGridPosition.z;
+            game.NotifyTutorialAction(depth ? TutorialProgress.Action.ChangeDepth : TutorialProgress.Action.MoveShape);
+        }
     }
 
     public void SetDepth(int depth)
@@ -109,7 +119,7 @@ public class ActiveFigureController : MonoBehaviour
 
     public void Rotate(int localAxis)
     {
-        if (!HasActiveFigure) return;
+        if (!HasActiveFigure || InteractionBlocked) return;
         data.offer = new ShapeOffer(data.offer.CatalogIndex, data.baseCells,
             ShapeRules.RotateOrientation(data.offer.Orientation, localAxis));
         data.onRotationChanged?.Invoke();

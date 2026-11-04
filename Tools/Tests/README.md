@@ -14,7 +14,7 @@ In the current cloud instance the SDK is installed outside the checkout:
 /workspace/tools/dotnet/dotnet test Tools/Tests/BoardModel.Tests.csproj
 ```
 
-88 cases cover occupancy, non-origin placement, boundaries, overlap rejection
+94 cases cover occupancy, non-origin placement, boundaries, overlap rejection
 without partial writes, invalid shapes, full/incomplete planes on all axes,
 intersecting plane clearing, and placement availability on a full board.
 Additional cases cover full lines on each axis, incomplete lines, parallel and
@@ -122,7 +122,7 @@ Over. Browsing hides placement-only actions instead of showing a disabled row.
 The board now displays 12 edges, a quiet floor guide and the active layer grid.
 Try all eight layers and both rotation buttons after turning the cube around both axes.
 
-Standalone model tests: 88 passed. Runtime and Unity integration-test sources
+Standalone model tests: 94 passed. Runtime and Unity integration-test sources
 compile against the actual Unity 2022.3.62f3 assemblies (including its matching
 UGUI and test-runner references). Scene/UI interaction tests remain unrun in the
 cloud because the editor has no activated license. Compilation does not verify
@@ -151,7 +151,7 @@ consistent scale, label separation and selected-card contrast.
 four-turn identity, stage boundaries, distinct offers, geometry connectivity,
 all cube rotations, deterministic seeded generation, and Game Over with isolated
 free cells. It also checks that the late-game fallback cannot reintroduce retired
-tiny pieces. All 88 standalone cases pass.
+tiny pieces. All 94 standalone cases pass.
 
 Additional Unity tests in `OfferInteractionTests` check a 90-degree turn and
 selection lock during its animation, plus the real Game Over event/overlay path
@@ -197,7 +197,7 @@ Game Over are documented in `Tools/Balance/README.md`.
 eight occupied-cell depths. Only layers on the camera side of the selection
 fade in normal mode; XRay highlights the selected layer and shows other layers
 with faint faces/edges. With no selection, XRay applies uniformly; cancel plus
-XRay off restores solid rendering. All 88 standalone model tests pass.
+XRay off restores solid rendering. All 94 standalone model tests pass.
 
 `OfferInteractionTests.XRayAndLayerFadeRestoreMaterialsColorsAndOccupancy` loads
 Game, creates blocks in front/on/behind the selected layer, clicks the actual
@@ -252,7 +252,7 @@ uses three logical offers, and controls no longer hide arbitrary scene Canvases.
 MainMenu and shared resource assets are not deleted by this scene cleanup.
 
 Local serialized fileID references in the saved scene were checked for dangling
-links. All 88 standalone model tests pass and both runtime/test sources compile.
+links. All 94 standalone model tests pass and both runtime/test sources compile.
 `GameSceneCleanupTests` checks the saved scene hierarchy, field scale, component
 links and lack of legacy UI/model in Unity. Open MainMenu (or another scene)
 before running this asset test: it explicitly skips if Game is already open so
@@ -260,3 +260,70 @@ it will not close or replace the user's potentially unsaved work. The test loads
 Game additively and closes only the scene it opened. It remains unrun in the cloud
 without a Unity license; the existing Play Mode tests still cover bootstrapping,
 card interaction, placement, XRay and Game Over on the actual Game scene.
+
+
+### Step 8: menu, session controls, preferences and onboarding
+
+MainMenu is rebuilt using the same GameTheme colors, rounded surfaces, font and
+ShapeThumbnailGraphic as the game. The authored scene is minimal, matching Game's
+runtime-HUD approach. Both MainMenu and Game are enabled in Build Settings.
+ScreenWidgets/SettingsView share the menu/modal controls and safe-area layout.
+
+SessionFlow guards pause, Game Over and duplicate scene transitions. GameManager
+owns Time.timeScale and listener pause, restores them before scene changes, and
+pauses on background/focus loss in builds. Actor manipulation, selection,
+confirmation and field rotation respect this input lock; a held gesture cannot
+become a move on resume. Spawn/clear animations freeze, while menus remain usable.
+A pending committed placement contributes to the saved best score if the player
+leaves before its animation finishes, without awarding its points twice on resume.
+
+GamePreferences retains the existing best-score key and saves sound, volume and
+tutorial completion. Sound/volume apply in both scenes and survive restart. UIAudio
+provides a quiet procedural interface click, including paused menu interaction;
+full gameplay sound effects remain in step 9. Volume drags update live and flush
+on settings close/background/exit, avoiding a disk save on every slider tick.
+
+TutorialProgress follows actual board-turn completion, selection, planar movement,
+depth change and successful placement. It introduces no occupancy-aware spawn or
+automatic solution. First play shows the guide; intro or pause/help can skip it.
+MainMenu's Learn button explicitly replays it even after completion. Cancellation
+keeps the current learned step and asks for a new selection if necessary.
+
+SessionAndTutorialTests brings the standalone suite to 94 passed cases. New
+SessionInterfaceTests compile against real Unity APIs and cover:
+
+- main menu → persisted settings → game → pause/resume → exit confirmation → menu;
+- pausing a committed placement, frozen animation, record persistence and no double
+  scoring, then Game Over → restart → Game Over → menu;
+- actual five-step onboarding, saved completion and forced replay/skip from menu.
+
+Unity interface tests remain unexecuted in the cloud without an Editor license.
+PreferenceTestScope uses editor SessionState across Play Mode domain reloads and
+restores the player's settings/record *after* scene destruction, so tests do not
+leave their preference values behind. Existing gameplay tests explicitly bypass
+the guide only for that run, without recording tutorial completion.
+
+#### Acceptance in Unity and on a phone
+
+1. Start MainMenu. Check the new art, score record and buttons in portrait and
+   landscape, including the phone's safe areas. Open settings: mute, adjust volume,
+   return, start Game, and verify the choices still apply. Reopen the application
+   to verify disk persistence. The old best score should remain intact.
+2. On first play, begin the guide. Cards should unlock after a completed field
+   turn; confirmation should unlock after movement and a depth change. Complete
+   placement, then play normally. Restart: the guide should not appear again.
+   Use Learn in MainMenu to replay it. Check intro skip and pause/help skip.
+3. During rotation, placement and clearing, open Pause. Everything on the board
+   should freeze. Try dragging/selecting/confirming: no gameplay action should
+   occur. Settings and sound controls should still work. Resume and verify the
+   same selection and animation continue without an extra move.
+4. Pause → Restart/Menu must ask for confirmation. Cancel must keep the same
+   party paused. Confirm must restore normal time and keep the best result. Verify
+   the best result also persists when leaving during a placement animation.
+5. Background the phone and return: the pause screen should be waiting. Test the
+   Android back/Escape paths through settings/help/confirmation/pause/menu.
+6. Finish a party, then test both Restart and Menu on Game Over. Check score,
+   combo message, lines/moves/peak statistics and fresh-party state.
+
+The Play Mode scenarios, audible click/volume behavior, mobile lifecycle and
+visual layout require device/editor acceptance; compilation alone is not a pass.

@@ -14,11 +14,16 @@ public class ShapePlacer : MonoBehaviour
     public event ShapePlacedHandler OnShapePlaced;
 
     private bool busyClearing;
+    private GameManager game;
+    private BoardModel.ClearResult pending;
+    private int pendingCells;
+    public int PendingScore(int pointsPerBlock) => pending!=null ? pending.Score(pendingCells,pointsPerBlock) : 0;
 
     public bool IsResolving => busyClearing;
 
     void Start()
     {
+        game=FindObjectOfType<GameManager>();
         if (figureController == null)
             figureController = FindObjectOfType<ActiveFigureController>();
         if (field == null && figureController != null)
@@ -38,7 +43,7 @@ public class ShapePlacer : MonoBehaviour
 
     public void TryPlaceActive()
     {
-        if (busyClearing) return;
+        if (busyClearing || (game!=null && !game.CanPlace)) return;
         if (figureController == null || field == null) return;
         if (!figureController.HasActiveFigure) return;
         if (!figureController.CanPlaceAtCurrent()) return;
@@ -78,6 +83,7 @@ public class ShapePlacer : MonoBehaviour
 
         // Capture all lines and plane bonuses before removing any cell.
         var result = field.GetCompletedLines();
+        pending=result; pendingCells=blocks.Count;
         busyClearing = true;
         StartCoroutine(ResolveLinesAndNotify(result, blocks));
     }
@@ -97,11 +103,13 @@ public class ShapePlacer : MonoBehaviour
                 }
                 else field.ClearLines(result);
             }
+            pending=null; pendingCells=0;
             OnShapePlaced?.Invoke(blocks.Count, result);
         }
         finally
         {
             busyClearing = false;
+            pending=null; pendingCells=0;
         }
     }
 

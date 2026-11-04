@@ -16,13 +16,25 @@ public class GameManager : MonoBehaviour
     public RunStatistics Statistics { get; } = new RunStatistics();
     private int score;
     private int bestScore;
-    private bool isGameOver;
-
-    const string BEST_SCORE_KEY = "blockblast.best";
+    private readonly SessionFlow session=new SessionFlow();
+    private GameSessionUI sessionUI;
+    private float timeBeforePause=1;
+    private bool ownsPause,initialized;
+    public TutorialProgress Tutorial { get; } = new TutorialProgress();
+    public int LastClearedLines { get; private set; }
+    public float LastMoveAt { get; private set; } = -100;
+    public float TutorialFinishedAt { get; private set; } = -100;
+    public bool IsPaused => session.Paused;
+    public bool Transitioning => session.Transitioning;
+    public bool InputBlocked => !session.CanAcceptInput || Tutorial.IsIntro;
+    public bool CanPlace => !InputBlocked && Tutorial.CanPlace;
 
     void Start()
     {
-        bestScore = PlayerPrefs.GetInt(BEST_SCORE_KEY, 0);
+        initialized=true;
+        Time.timeScale=1; AudioListener.pause=false; GamePreferences.ApplyAudio();
+        bestScore=GamePreferences.BestScore;
+        if (GameLaunch.ConsumeTutorialRequest() || !GamePreferences.TutorialCompleted) Tutorial.Start();
 
         if (field == null) field = FindObjectOfType<Field3D>();
         if (field != null) fieldRotator=field.GetComponent<FieldRotator>();
@@ -55,13 +67,20 @@ public class GameManager : MonoBehaviour
         var controls = GetComponent<MobilePlacementControls>();
         if (controls == null) controls = gameObject.AddComponent<MobilePlacementControls>();
         controls.Initialize(activeFigureController, shapePlacer, this);
+        sessionUI=GetComponent<GameSessionUI>();
+        if (sessionUI==null) sessionUI=gameObject.AddComponent<GameSessionUI>();
+        sessionUI.Initialize(this);
     }
 
     public void HandleShapePlaced(int cellsCount, BoardModel.ClearResult clearResult)
     {
+        if (Transitioning) return;
         // Placement + lines + simultaneous-line combo + rare full-plane bonus.
         int gained = clearResult.Score(cellsCount, cellsPerBlock);
         score += gained;
+        LastClearedLines=clearResult.LinesCleared; LastMoveAt=Time.unscaledTime;
+        if (score>bestScore) { bestScore=score; GamePreferences.RecordBest(score); }
+        NotifyTutorialAction(TutorialProgress.Action.PlaceShape);
         Statistics.RecordPlacement(clearResult,Field3D.Size*Field3D.Size*Field3D.Size-field.CountFreeCells());
 
         // Сообщим селектору, что фигура использована
@@ -88,14 +107,8 @@ public class GameManager : MonoBehaviour
 
     void HandleGameOver()
     {
-        if (isGameOver) return;
-        isGameOver = true;
-
-        if (score > bestScore)
-        {
-            bestScore = score;
-            PlayerPrefs.SetInt(BEST_SCORE_KEY, bestScore);
-        }
+        if (session.GameOver || Transitioning) return;
+        session.EndGame(); ReleasePause(); PersistProgress();
     }
 
     public bool TrySelectOffer(int index)
@@ -111,6 +124,7 @@ public class GameManager : MonoBehaviour
         var instance = shapeSelector.SpawnRealShape(index, field.transform.position);
         if (instance == null) return false;
         lastSpawnedButtonIndex = index;
+        NotifyTutorialAction(TutorialProgress.Action.SelectShape);
         return true;
     }
 
@@ -121,20 +135,60 @@ public class GameManager : MonoBehaviour
         lastSpawnedButtonIndex = -1;
     }
 
+    public void BeginTutorial() { Tutorial.Begin(); }
+    public void SkipTutorial(bool remember=true)
+    {
+        bool active=Tutorial.Active; Tutorial.Skip();
+        if (remember && active) GamePreferences.CompleteTutorial();
+    }
+    public void NotifyTutorialAction(TutorialProgress.Action action)
+    {
+        if (InputBlocked) return;
+        if (Tutorial.Signal(action))
+        { TutorialFinishedAt=Time.unscaledTime; GamePreferences.CompleteTutorial(); }
+    }
+    public void PauseGame()
+    {
+        if (!session.TryPause()) return;
+        timeBeforePause=Time.timeScale; ownsPause=true;
+        Time.timeScale=0; AudioListener.pause=true; PersistProgress();
+    }
+    public void ResumeGame() { session.Resume(); ReleasePause(); }
+    private void ReleasePause()
+    {
+        if (ownsPause) { Time.timeScale=timeBeforePause; ownsPause=false; }
+        AudioListener.pause=false; GamePreferences.ApplyAudio();
+    }
+    private void PersistProgress()
+    {
+        int committed=score+(shapePlacer!=null ? shapePlacer.PendingScore(cellsPerBlock) : 0);
+        bestScore=Mathf.Max(bestScore,committed); GamePreferences.RecordBest(bestScore); GamePreferences.Save();
+    }
+    private void Update()
+    { if (Input.GetKeyDown(KeyCode.Escape) && !Transitioning && sessionUI!=null) sessionUI.HandleBack(); }
+    private void OnApplicationPause(bool paused) { if (paused) { PauseGame(); PersistProgress(); } }
+    private void OnApplicationFocus(bool focused)
+    { if (!focused && !Application.isEditor) { PauseGame(); PersistProgress(); } }
+    private void OnApplicationQuit() { PersistProgress(); }
     private void OnDestroy()
     {
+        if (!initialized) return;
         if (shapeSelector != null) shapeSelector.OnNoValidPlacement -= HandleGameOver;
         if (shapePlacer != null) shapePlacer.OnShapePlaced -= HandleShapePlaced;
+        PersistProgress(); ReleasePause();
     }
-
-    public void RestartGame()
+    public void RestartGame() { LoadScene("Game"); }
+    public void ReturnToMenu() { LoadScene("MainMenu"); }
+    private void LoadScene(string name)
     {
-        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        if (!session.TryBeginTransition()) return;
+        PersistProgress(); ReleasePause();
+        Time.timeScale=1; SceneManager.LoadSceneAsync(name);
     }
 
     public int Score => score;
     public int BestScore => bestScore;
-    public bool IsGameOver => isGameOver;
-    public bool CanSelectShape => !isGameOver && (shapePlacer == null || !shapePlacer.IsResolving) &&
+    public bool IsGameOver => session.GameOver;
+    public bool CanSelectShape => !InputBlocked && Tutorial.CanSelect && (shapePlacer == null || !shapePlacer.IsResolving) &&
         (fieldRotator==null || !fieldRotator.IsRotating);
 }
