@@ -35,6 +35,7 @@ public class Field3D : MonoBehaviour
     private readonly BoardModel board = new BoardModel();
 
     public event Action<Plane> OnPlaneCleared;
+    public event Action<Vector3Int,Transform> OnCellChanged;
 
     public bool IsInside(int x, int y, int z) => board.IsInside(x, y, z);
     public bool IsFree(int x, int y, int z) => board.IsFree(x, y, z);
@@ -51,6 +52,7 @@ public class Field3D : MonoBehaviour
         if (!IsInside(x, y, z)) return;
         cells[x, y, z] = block;
         board.SetOccupied(x, y, z, block != null);
+        OnCellChanged?.Invoke(new Vector3Int(x,y,z),block);
     }
 
     public void ClearCell(int x, int y, int z)
@@ -58,6 +60,7 @@ public class Field3D : MonoBehaviour
         if (!IsInside(x, y, z)) return;
         cells[x, y, z] = null;
         board.ClearCell(x, y, z);
+        OnCellChanged?.Invoke(new Vector3Int(x,y,z),null);
     }
 
     public int CountFreeCells() => board.CountFreeCells();
@@ -138,10 +141,12 @@ public class Field3D : MonoBehaviour
                 var r = block.GetComponent<MeshRenderer>();
                 if (r != null)
                 {
-                    // Создаём инстанс-материал, чтобы цвет не утекал на префаб
-                    if (sharedMat != null)
-                        r.material = new Material(sharedMat);
-                    r.material.color = color;
+                    if (sharedMat!=null) r.sharedMaterial=sharedMat;
+                    var properties=new MaterialPropertyBlock();
+                    r.GetPropertyBlock(properties);
+                    properties.SetColor("_Color",color);
+                    properties.SetColor("_BaseColor",color);
+                    r.SetPropertyBlock(properties);
                 }
             }
 
@@ -172,7 +177,7 @@ public class Field3D : MonoBehaviour
             }
 
             var t = cells[x, y, z];
-            cells[x, y, z] = null;
+            ClearCell(x,y,z);
             if (t != null) Destroy(t.gameObject);
         }
     }

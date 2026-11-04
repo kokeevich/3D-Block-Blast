@@ -138,6 +138,81 @@ public class OfferInteractionTests
         yield return new ExitPlayMode();
     }
 
+    [UnityTest]
+    public IEnumerator XRayAndLayerFadeRestoreMaterialsColorsAndOccupancy()
+    {
+        yield return new EnterPlayMode();
+        yield return SceneManager.LoadSceneAsync("Game");
+        yield return null; yield return null;
+        var managerType=Type.GetType("GameManager, Assembly-CSharp",true);
+        var manager=UnityEngine.Object.FindObjectOfType(managerType);
+        Assert.IsTrue((bool)managerType.GetMethod("TrySelectOffer").Invoke(manager,new object[] { 0 }));
+        var controllerType=Type.GetType("ActiveFigureController, Assembly-CSharp",true);
+        var controller=UnityEngine.Object.FindObjectOfType(controllerType);
+        controllerType.GetMethod("SetDepth").Invoke(controller,new object[] { 3 });
+        var frame=(PlacementFrame)controllerType.GetProperty("Frame").GetValue(controller);
+        var anchor=(Vector3Int)controllerType.GetProperty("CurrentGridPosition").GetValue(controller);
+        int selected=frame.DepthAxis==0 ? anchor.x : frame.DepthAxis==1 ? anchor.y : anchor.z;
+        var fieldType=Type.GetType("Field3D, Assembly-CSharp",true);
+        var field=(Component)UnityEngine.Object.FindObjectOfType(fieldType);
+        var visibilityType=Type.GetType("BoardVisibility, Assembly-CSharp",true);
+        var visibility=(Behaviour)field.GetComponent(visibilityType);
+        var renderers=new Renderer[3]; var materials=new Material[3]; var coordinates=new Vector3Int[3];
+        Color tint=new Color(0.2f,0.5f,0.7f,1);
+        for (int i=0;i<3;i++)
+        {
+            int coordinate=selected+(1-i)*frame.NearSign;
+            var c=PlacementFrame.WithCoordinate(new BoardModel.Cell(0,0,0),frame.DepthAxis,coordinate);
+            coordinates[i]=new Vector3Int(c.x,c.y,c.z);
+            var block=GameObject.CreatePrimitive(PrimitiveType.Cube);
+            block.transform.SetParent(field.transform,false);
+            block.transform.localPosition=(Vector3)fieldType.GetMethod("GridToLocal").Invoke(field,new object[] { coordinates[i] });
+            renderers[i]=block.GetComponent<Renderer>(); materials[i]=renderers[i].sharedMaterial;
+            var properties=new MaterialPropertyBlock(); properties.SetColor("_Color",tint); renderers[i].SetPropertyBlock(properties);
+            fieldType.GetMethod("SetCell").Invoke(field,new object[] { c.x,c.y,c.z,block.transform });
+        }
+        yield return null;
+        var board=(BoardModel)fieldType.GetProperty("Model").GetValue(field);
+        int free=board.CountFreeCells();
+        Assert.AreEqual(BlockVisibilityRules.Style.FrontFade,visibilityType.GetMethod("GetCellStyle").Invoke(visibility,new object[] { coordinates[0] }));
+        Assert.AreEqual(BlockVisibilityRules.Style.Solid,visibilityType.GetMethod("GetCellStyle").Invoke(visibility,new object[] { coordinates[1] }));
+        Assert.AreEqual(BlockVisibilityRules.Style.Solid,visibilityType.GetMethod("GetCellStyle").Invoke(visibility,new object[] { coordinates[2] }));
+        ClickVisibleButton(GameObject.Find("XRayToggle").GetComponent<Button>());
+        yield return null;
+        Assert.IsTrue((bool)visibilityType.GetProperty("XRayEnabled").GetValue(visibility));
+        Assert.AreEqual(BlockVisibilityRules.Style.XRay,visibilityType.GetMethod("GetCellStyle").Invoke(visibility,new object[] { coordinates[0] }));
+        Assert.AreEqual(BlockVisibilityRules.Style.Focus,visibilityType.GetMethod("GetCellStyle").Invoke(visibility,new object[] { coordinates[1] }));
+        Assert.AreEqual(BlockVisibilityRules.Style.XRay,visibilityType.GetMethod("GetCellStyle").Invoke(visibility,new object[] { coordinates[2] }));
+        Assert.AreEqual(free,board.CountFreeCells());
+        ClickVisibleButton(GameObject.Find("XRayToggle").GetComponent<Button>());
+        yield return null;
+        visibility.enabled=false;
+        for (int i=0;i<3;i++) Assert.AreEqual(materials[i],renderers[i].sharedMaterial);
+        visibility.enabled=true;
+        yield return null;
+        Assert.AreEqual(BlockVisibilityRules.Style.FrontFade,visibilityType.GetMethod("GetCellStyle").Invoke(visibility,new object[] { coordinates[0] }));
+        managerType.GetMethod("CancelSelection").Invoke(manager,null);
+        yield return null;
+        for (int i=0;i<3;i++)
+        {
+            Assert.AreEqual(materials[i],renderers[i].sharedMaterial);
+            var properties=new MaterialPropertyBlock(); renderers[i].GetPropertyBlock(properties);
+            Assert.AreEqual(tint,properties.GetColor("_Color"));
+            Assert.AreEqual(UnityEngine.Rendering.ShadowCastingMode.On,renderers[i].shadowCastingMode);
+        }
+        Assert.AreEqual(free,board.CountFreeCells());
+        fieldType.GetMethod("ClearCell").Invoke(field,new object[] { coordinates[0].x,coordinates[0].y,coordinates[0].z });
+        Assert.AreEqual(BlockVisibilityRules.Style.Solid,visibilityType.GetMethod("GetCellStyle").Invoke(visibility,new object[] { coordinates[0] }));
+        var planeType=fieldType.GetNestedType("Plane");
+        var axisType=fieldType.GetNestedType("PlaneAxis");
+        var axis=Enum.Parse(axisType,frame.DepthAxis==0 ? "YZ" : frame.DepthAxis==1 ? "XZ" : "XY");
+        var plane=Activator.CreateInstance(planeType,new object[] { axis,selected });
+        fieldType.GetMethod("ClearPlane").Invoke(field,new[] { plane });
+        Assert.AreEqual(BlockVisibilityRules.Style.Solid,visibilityType.GetMethod("GetCellStyle").Invoke(visibility,new object[] { coordinates[1] }));
+        Assert.AreEqual(free+2,board.CountFreeCells());
+        yield return new ExitPlayMode();
+    }
+
     private static void ClickVisibleButton(Button button)
     {
         Canvas.ForceUpdateCanvases();

@@ -7,8 +7,8 @@ public class VoxelField : MonoBehaviour
     [SerializeField] private bool visible = true;
     private Field3D field;
     private ActiveFigureController figure;
-    private Mesh frameMesh, floorMesh, layerMesh;
-    private MeshRenderer frameRenderer, floorRenderer, layerRenderer;
+    private Mesh frameMesh, floorMesh, layerMesh, sliceMesh;
+    private MeshRenderer frameRenderer, floorRenderer, layerRenderer, sliceRenderer;
     private readonly List<Material> materials = new List<Material>();
     private int layerKey = int.MinValue;
     private float Half => Field3D.Size*field.CellSize*0.5f;
@@ -20,7 +20,8 @@ public class VoxelField : MonoBehaviour
         HideLegacyFieldModel();
         frameMesh = CreateMesh("Board Frame",new Color(0.30f,0.48f,0.47f,0.72f),out frameRenderer);
         floorMesh = CreateMesh("Floor Guide",new Color(0.26f,0.46f,0.43f,0.25f),out floorRenderer);
-        layerMesh = CreateMesh("Active Layer",new Color(0.08f,0.58f,0.42f,0.55f),out layerRenderer);
+        layerMesh = CreateMesh("Active Layer",new Color(0.08f,0.58f,0.42f,0.40f),out layerRenderer);
+        sliceMesh = CreateMesh("Layer Tint",new Color(0.08f,0.58f,0.42f,0.045f),out sliceRenderer);
         var vertices = new List<Vector3>();
         for (int axis=0;axis<3;axis++)
         for (int a=-1;a<=1;a+=2)
@@ -48,6 +49,7 @@ public class VoxelField : MonoBehaviour
         if (layerRenderer == null) return;
         bool active=visible && figure != null && figure.HasActiveFigure && figure.Frame != null;
         layerRenderer.enabled=active;
+        sliceRenderer.enabled=active;
         if (!active) { layerKey=int.MinValue; return; }
         int axis=figure.Frame.DepthAxis;
         Vector3Int position=figure.CurrentGridPosition;
@@ -64,6 +66,10 @@ public class VoxelField : MonoBehaviour
             Line(vertices,Point(axis,layer,p,-Half),Point(axis,layer,p,Half));
         }
         Upload(layerMesh,vertices);
+        sliceMesh.Clear();
+        sliceMesh.vertices=new[] { Point(axis,layer,-Half,-Half),Point(axis,layer,-Half,Half),
+            Point(axis,layer,Half,Half),Point(axis,layer,Half,-Half) };
+        sliceMesh.triangles=new[] { 0,1,2,0,2,3 }; sliceMesh.RecalculateBounds();
     }
     private Mesh CreateMesh(string name,Color tint,out MeshRenderer renderer)
     {
@@ -71,7 +77,11 @@ public class VoxelField : MonoBehaviour
         var mesh=new Mesh { name=name };
         child.AddComponent<MeshFilter>().sharedMesh=mesh;
         renderer=child.AddComponent<MeshRenderer>();
-        var material=new Material(Shader.Find("Sprites/Default")) { name=name+" Material",color=tint };
+        bool isLayer=name=="Active Layer" || name=="Layer Tint";
+        var shader=isLayer ? Resources.Load<Shader>("LayerGuide") : Shader.Find("Sprites/Default");
+        var material=new Material(shader) { name=name+" Material",color=tint };
+        if (isLayer) material.renderQueue=name=="Active Layer" ? 3050 : 3040;
+        else if (name=="Board Frame") material.renderQueue=3060;
         materials.Add(material); renderer.sharedMaterial=material;
         renderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;
         renderer.receiveShadows=false;
@@ -92,12 +102,14 @@ public class VoxelField : MonoBehaviour
         if (frameRenderer != null) frameRenderer.enabled=value;
         if (floorRenderer != null) floorRenderer.enabled=value;
         if (layerRenderer != null) layerRenderer.enabled=false;
+        if (sliceRenderer != null) sliceRenderer.enabled=false;
     }
     private void OnDestroy()
     {
         if (frameMesh != null) Destroy(frameMesh);
         if (floorMesh != null) Destroy(floorMesh);
         if (layerMesh != null) Destroy(layerMesh);
+        if (sliceMesh != null) Destroy(sliceMesh);
         foreach (var material in materials) if (material != null) Destroy(material);
     }
 }

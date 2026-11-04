@@ -61,6 +61,8 @@ public class GameManager : MonoBehaviour
             shapePlacer.OnShapePlaced += HandleShapePlaced;
         }
 
+        if (field!=null && field.GetComponent<BoardVisibility>()==null)
+            field.gameObject.AddComponent<BoardVisibility>();
         var controls = GetComponent<MobilePlacementControls>();
         if (controls == null) controls = gameObject.AddComponent<MobilePlacementControls>();
         controls.Initialize(activeFigureController, shapePlacer, this);

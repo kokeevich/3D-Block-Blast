@@ -16,6 +16,9 @@ public class MobilePlacementControls : MonoBehaviour
     private GameManager game;
     private BalancedShapeSelector selector;
     private Field3D field;
+    private BoardVisibility visibility;
+    private Button xrayToggle;
+    private Text xrayLabel;
     private GameObject canvasObject;
     private Canvas canvas;
     private RectTransform safeRoot, boardArea, tray, hud;
@@ -31,7 +34,7 @@ public class MobilePlacementControls : MonoBehaviour
     private readonly bool[] offerFits = new bool[3];
     private readonly Button[] layers = new Button[8];
     private Button rotateHorizontal, rotateVertical, cancel, place;
-    private Text finalStatistics;
+    private Text finalStatistics,brandText;
     private Font font;
     private Sprite rounded;
     private Texture2D roundedTexture;
@@ -43,6 +46,7 @@ public class MobilePlacementControls : MonoBehaviour
         figure = controller; placer = shapePlacer; game = manager;
         selector = FindObjectOfType<BalancedShapeSelector>();
         field = FindObjectOfType<Field3D>();
+        visibility=field!=null ? field.GetComponent<BoardVisibility>() : null;
         font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         MakeRoundedSprite();
         if (figure != null) figure.SetPreviewColors(new Color(0.08f,0.68f,0.43f),new Color(0.94f,0.31f,0.23f));
@@ -77,14 +81,17 @@ public class MobilePlacementControls : MonoBehaviour
 
     private void BuildHeader()
     {
-        hud = Rect("Header",safeRoot,new Vector2(0,1),Vector2.one,new Vector2(-88,230),new Vector2(0,-24));
+        hud = Rect("Header",safeRoot,new Vector2(0,1),Vector2.one,new Vector2(-88,260),new Vector2(0,-24));
         hud.pivot = new Vector2(0.5f,1);
-        Label("Brand",hud,"BLOCK BLAST",new Vector2(0,0.77f),new Vector2(0.70f,1),42,Muted,TextAnchor.MiddleLeft,true);
+        brandText=Label("Brand",hud,"BLOCK BLAST",new Vector2(0,0.77f),new Vector2(0.70f,1),42,Muted,TextAnchor.MiddleLeft,true);
         Label("ScoreCaption",hud,"СЧЁТ",new Vector2(0,0.55f),new Vector2(0.4f,0.74f),30,Muted,TextAnchor.MiddleLeft);
         scoreText = Label("Score",hud,"0",new Vector2(0,0.08f),new Vector2(0.6f,0.58f),104,Ink,TextAnchor.MiddleLeft,true);
-        var record = Box("RecordPill",hud,new Vector2(0.70f,0.35f),new Vector2(1,0.94f),PanelColor);
+        var record = Box("RecordPill",hud,new Vector2(0.70f,0.56f),new Vector2(1,0.99f),PanelColor);
         Label("Caption",record,"РЕКОРД",new Vector2(0,0.55f),Vector2.one,28,Muted);
         recordText = Label("Record",record,"0",new Vector2(0,0.04f),new Vector2(1,0.62f),38,Accent,TextAnchor.MiddleCenter,true);
+        xrayToggle=Button("XRayToggle",hud,"Рентген: выкл",new Vector2(0.70f,0.02f),new Vector2(1,0.50f),
+            SoftButton,Ink,() => { if (visibility!=null && visibility.isActiveAndEnabled && !game.IsGameOver) visibility.ToggleXRay(); });
+        xrayLabel=xrayToggle.GetComponentInChildren<Text>();
         gainText = Label("ScoreGain",hud,"",new Vector2(0.3f,0.14f),new Vector2(0.65f,0.6f),34,Accent,TextAnchor.MiddleLeft,true);
         modeText = Label("Mode",safeRoot,"Выберите фигуру",new Vector2(0.1f,0.815f),new Vector2(0.9f,0.85f),32,Accent);
         hint = Label("Hint",safeRoot,"Свайпните, чтобы повернуть куб на 90°",new Vector2(0.06f,0.775f),new Vector2(0.94f,0.813f),36,Muted);
@@ -162,6 +169,11 @@ public class MobilePlacementControls : MonoBehaviour
         safeRoot.anchorMin = new Vector2(safe.xMin/Mathf.Max(1,Screen.width),safe.yMin/Mathf.Max(1,Screen.height));
         safeRoot.anchorMax = new Vector2(safe.xMax/Mathf.Max(1,Screen.width),safe.yMax/Mathf.Max(1,Screen.height));
         if (screenWidth != Screen.width || screenHeight != Screen.height) ConfigureView();
+        bool xray=visibility!=null && visibility.XRayEnabled;
+        xrayToggle.interactable=visibility!=null && visibility.isActiveAndEnabled && !game.IsGameOver;
+        xrayToggle.GetComponent<Image>().color=xray ? Accent : SoftButton;
+        xrayLabel.text=xray ? "Рентген: вкл" : "Рентген: выкл";
+        xrayLabel.color=xray ? Color.white : Ink;
         bool active = CanInteract;
         placementActions.SetActive(figure.HasActiveFigure);
         browseHelp.SetActive(!figure.HasActiveFigure);
@@ -179,6 +191,9 @@ public class MobilePlacementControls : MonoBehaviour
         modeText.color = figure.HasActiveFigure && !figure.CanPlaceAtCurrent() ? new Color(0.78f,0.26f,0.20f) : Accent;
         hint.text = placer.IsResolving ? "" : !figure.HasActiveFigure ? "Свайпните, чтобы повернуть куб на 90°" :
             figure.CanPlaceAtCurrent() ? "Двигайте фигуру • меняйте глубину" : "Сдвиньте фигуру или смените глубину";
+        if (xray && !placer.IsResolving && !game.IsGameOver)
+            hint.text=!figure.HasActiveFigure ? "Рентген: видны внутренние блоки" : figure.CanPlaceAtCurrent() ?
+                "Выделен слой "+(figure.Depth+1)+" — остальные прозрачны" : hint.text;
         RefreshOffers();
         displayedScore = Mathf.MoveTowards(displayedScore,game.Score,Mathf.Max(30,Mathf.Abs(game.Score-displayedScore)*8)*Time.unscaledDeltaTime);
         scoreText.text = Mathf.RoundToInt(displayedScore).ToString();
@@ -235,7 +250,7 @@ public class MobilePlacementControls : MonoBehaviour
             tray.anchorMin = new Vector2(0.58f,0.03f); tray.anchorMax = new Vector2(0.98f,0.97f);
             tray.pivot = new Vector2(0.5f,0.5f); tray.sizeDelta = Vector2.zero; tray.anchoredPosition = Vector2.zero;
             hud.anchorMin = new Vector2(0,1); hud.anchorMax = new Vector2(0.55f,1);
-            hud.sizeDelta = new Vector2(-64,210);
+            hud.sizeDelta = new Vector2(-64,176);
             boardArea.anchorMin = new Vector2(0.02f,0.06f); boardArea.anchorMax = new Vector2(0.56f,0.70f);
             modeText.rectTransform.anchorMin = new Vector2(0.03f,0.72f); modeText.rectTransform.anchorMax = new Vector2(0.53f,0.77f);
             hint.rectTransform.anchorMin = new Vector2(0.03f,0.66f); hint.rectTransform.anchorMax = new Vector2(0.53f,0.72f);
@@ -244,11 +259,14 @@ public class MobilePlacementControls : MonoBehaviour
         {
             tray.anchorMin = Vector2.zero; tray.anchorMax = new Vector2(1,0);
             tray.pivot = new Vector2(0.5f,0); tray.sizeDelta = new Vector2(-48,700); tray.anchoredPosition = new Vector2(0,20);
-            hud.anchorMin = new Vector2(0,1); hud.anchorMax = Vector2.one; hud.sizeDelta = new Vector2(-88,230);
+            hud.anchorMin = new Vector2(0,1); hud.anchorMax = Vector2.one; hud.sizeDelta = new Vector2(-88,260);
             boardArea.anchorMin = new Vector2(0.02f,0.40f); boardArea.anchorMax = new Vector2(0.98f,0.84f);
             modeText.rectTransform.anchorMin = new Vector2(0.10f,0.815f); modeText.rectTransform.anchorMax = new Vector2(0.90f,0.85f);
             hint.rectTransform.anchorMin = new Vector2(0.06f,0.775f); hint.rectTransform.anchorMax = new Vector2(0.94f,0.813f);
         }
+        brandText.fontSize=landscape ? 34 : 42;
+        scoreText.fontSize=landscape ? 72 : 104;
+        recordText.fontSize=landscape ? 34 : 38;
         Quaternion rotation = Quaternion.Euler(24,36,0);
         float half = Field3D.Size*field.CellSize*0.5f;
         float radius = Vector3.Scale(Vector3.one*half,field.transform.lossyScale).magnitude;

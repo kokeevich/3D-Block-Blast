@@ -14,7 +14,7 @@ In the current cloud instance the SDK is installed outside the checkout:
 /workspace/tools/dotnet/dotnet test Tools/Tests/BoardModel.Tests.csproj
 ```
 
-75 cases cover occupancy, non-origin placement, boundaries, overlap rejection
+88 cases cover occupancy, non-origin placement, boundaries, overlap rejection
 without partial writes, invalid shapes, full/incomplete planes on all axes,
 intersecting plane clearing, and placement availability on a full board.
 Additional cases cover full lines on each axis, incomplete lines, parallel and
@@ -119,7 +119,7 @@ Over. Browsing hides placement-only actions instead of showing a disabled row.
 The board now displays 12 edges, a quiet floor guide and the active layer grid.
 Try all eight layers and both rotation buttons after turning the cube around both axes.
 
-Standalone model tests: 75 passed. Runtime and Unity integration-test sources
+Standalone model tests: 88 passed. Runtime and Unity integration-test sources
 compile against the actual Unity 2022.3.62f3 assemblies (including its matching
 UGUI and test-runner references). Scene/UI interaction tests remain unrun in the
 cloud because the editor has no activated license. Compilation does not verify
@@ -148,7 +148,7 @@ consistent scale, label separation and selected-card contrast.
 four-turn identity, stage boundaries, distinct offers, geometry connectivity,
 all cube rotations, deterministic seeded generation, and Game Over with isolated
 free cells. It also checks that the late-game fallback cannot reintroduce retired
-tiny pieces. All 75 standalone cases pass.
+tiny pieces. All 88 standalone cases pass.
 
 Additional Unity tests in `OfferInteractionTests` check a 90-degree turn and
 selection lock during its animation, plus the real Game Over event/overlay path
@@ -186,3 +186,50 @@ Check the new result statistics after both a placement-only and a clearing move.
 `Tools/Balance/paired-results.txt` records a controlled comparison on identical
 offer tapes; the limitations and distinction between manual input required and
 Game Over are documented in `Tools/Balance/README.md`.
+
+
+### Step 7: board visibility
+
+`BlockVisibilityTests` checks every face/sign, all eight selected layers and all
+eight occupied-cell depths. Only layers on the camera side of the selection
+fade in normal mode; XRay highlights the selected layer and shows other layers
+with faint faces/edges. With no selection, XRay applies uniformly; cancel plus
+XRay off restores solid rendering. All 88 standalone model tests pass.
+
+`OfferInteractionTests.XRayAndLayerFadeRestoreMaterialsColorsAndOccupancy` loads
+Game, creates blocks in front/on/behind the selected layer, clicks the actual
+XRay button, verifies rendering states, disables/re-enables the component,
+cancels selection, and checks original materials, tint, shadows and occupancy.
+It checks cleanup through ClearCell and ClearPlane too. The test compiles against
+Unity's actual UGUI/editor APIs but has not executed without an Editor license.
+C# compilation does not validate shader compilation or rendered appearance.
+
+Implementation: `BoardVisibility` is registered by GameManager on Field3D.
+Cell-change notifications maintain a renderer cache. Three shared translucent
+materials and property blocks avoid per-frame material instances. Normal mode
+uses the original materials; no cells or renderers are removed to simulate
+visibility. Scene unload/disable restores original state and disposes shared
+materials. Block colors are stored in property blocks instead of cloned materials.
+Transparent and guide shaders live in Resources so Android builds retain them.
+
+#### Visual acceptance on a phone
+
+1. Partially fill the center of the cube, then select a shape and switch depth
+   through all eight levels. Blocks between camera and selection should become
+   faint; the selected layer and red/green target cells should remain legible.
+2. Cancel: ordinary solids/colors/shadows must return. Quarter-turn the field
+   and repeat for the opposite sides and top/bottom.
+3. Tap `Рентген: выкл`: the label switches to `Рентген: вкл`. Interior occupied
+   cells must show through the front cells. Select a shape: its depth layer gets
+   stronger contours than the other layers. Change depth, move and rotate it.
+4. Cancel with XRay on: uniform XRay should remain. Switch it off: original
+   solids return. None of these actions may change score, offers or occupancy.
+5. Place and clear lines in both modes. Pop/spawn scaling should still work;
+   removed cells must not leave translucent duplicates or retain display state.
+6. Check portrait/landscape and safe areas: the header toggle, record, score and
+   placement controls must remain separate and clickable. Restart a party:
+   XRay starts off. Evaluate dense central blocks at the phone's actual size.
+
+Shaders use the built-in render pipeline, transparent blending and shader model
+3.0 derivatives for anti-aliased cube outlines. GPU rendering/performance and
+screen-size readability remain device checks, not validated cloud outcomes.
