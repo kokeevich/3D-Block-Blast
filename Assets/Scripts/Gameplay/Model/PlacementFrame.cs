@@ -31,6 +31,17 @@ public sealed class PlacementFrame
         VerticalSign = cameraUp[VerticalAxis] >= 0 ? 1 : -1;
     }
 
+    // Geometry only: occupancy must never influence the initial preview.
+    public Cell StartAnchor(Cell[] shape)
+    {
+        if (shape==null || shape.Length==0) throw new ArgumentException("Shape cells are required.",nameof(shape));
+        int x=0,y=0,z=0;
+        foreach (var c in shape) { x=Math.Max(x,c.x); y=Math.Max(y,c.y); z=Math.Max(z,c.z); }
+        var center=new Cell((BoardModel.Size-1-x)/2,(BoardModel.Size-1-y)/2,(BoardModel.Size-1-z)/2);
+        int extent=DepthAxis==0 ? x : DepthAxis==1 ? y : z;
+        return AtDepth(center,NearSign>0 ? extent : 0);
+    }
+
     public int Depth(Cell anchor) => NearSign > 0 ? 7 - Coordinate(anchor, DepthAxis) : Coordinate(anchor, DepthAxis);
     public Cell AtDepth(Cell anchor, int depth) => WithCoordinate(anchor, DepthAxis,
         NearSign > 0 ? 7 - Clamp(depth) : Clamp(depth));

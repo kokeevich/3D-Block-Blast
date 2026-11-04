@@ -31,6 +31,7 @@ public class MobilePlacementControls : MonoBehaviour
     private readonly bool[] offerFits = new bool[3];
     private readonly Button[] layers = new Button[8];
     private Button rotateHorizontal, rotateVertical, cancel, place;
+    private Text finalStatistics;
     private Font font;
     private Sprite rounded;
     private Texture2D roundedTexture;
@@ -140,11 +141,12 @@ public class MobilePlacementControls : MonoBehaviour
     {
         gameOver = Box("GameOverOverlay",safeRoot,Vector2.zero,Vector2.one,new Color(0.66f,0.75f,0.70f,0.96f)).gameObject;
         gameOver.GetComponent<Image>().raycastTarget = true;
-        var card = Box("GameOverCard",gameOver.transform,new Vector2(0.08f,0.30f),new Vector2(0.92f,0.69f),PanelColor);
-        Label("Title",card,"Хорошая партия!",new Vector2(0.04f,0.72f),new Vector2(0.96f,0.94f),48,Ink,TextAnchor.MiddleCenter,true);
-        Label("Caption",card,"Больше нет места для оставшихся фигур",new Vector2(0.05f,0.56f),new Vector2(0.95f,0.75f),36,Muted);
-        finalScore = Label("FinalScore",card,"0",new Vector2(0,0.25f),new Vector2(1,0.58f),86,Accent,TextAnchor.MiddleCenter,true);
-        Button("Restart",card,"Ещё раз",new Vector2(0.1f,0.07f),new Vector2(0.9f,0.25f),Accent,Color.white,game.RestartGame);
+        var card = Box("GameOverCard",gameOver.transform,new Vector2(0.08f,0.23f),new Vector2(0.92f,0.77f),PanelColor);
+        Label("Title",card,"Хорошая партия!",new Vector2(0.04f,0.83f),new Vector2(0.96f,0.96f),48,Ink,TextAnchor.MiddleCenter,true);
+        Label("Caption",card,"Больше нет места для оставшихся фигур",new Vector2(0.05f,0.72f),new Vector2(0.95f,0.83f),36,Muted);
+        finalScore = Label("FinalScore",card,"0",new Vector2(0,0.49f),new Vector2(1,0.71f),80,Accent,TextAnchor.MiddleCenter,true);
+        finalStatistics=Label("FinalStatistics",card,"",new Vector2(0.06f,0.22f),new Vector2(0.94f,0.49f),34,Ink);
+        Button("Restart",card,"Ещё раз",new Vector2(0.1f,0.06f),new Vector2(0.9f,0.18f),Accent,Color.white,game.RestartGame);
         gameOver.SetActive(false);
     }
 
@@ -186,7 +188,11 @@ public class MobilePlacementControls : MonoBehaviour
         gainTime = Mathf.Max(0,gainTime-Time.unscaledDeltaTime);
         gainText.color = new Color(Accent.r,Accent.g,Accent.b,gainTime);
         gameOver.SetActive(game.IsGameOver);
-        if (game.IsGameOver) finalScore.text = game.Score.ToString();
+        if (game.IsGameOver)
+        {
+            finalScore.text=game.Score.ToString();
+            finalStatistics.text=$"Ходы: {game.Statistics.Moves}\nОчищено линий: {game.Statistics.Lines}\nМакс. заполненность: {game.Statistics.PeakPercent:0}%";
+        }
     }
 
     private void RefreshOffers()

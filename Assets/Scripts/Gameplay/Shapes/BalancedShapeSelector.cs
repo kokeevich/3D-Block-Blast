@@ -110,20 +110,16 @@ public class BalancedShapeSelector : MonoBehaviour
 
     public GameObject SpawnRealShape(int index, Vector3 spawnPosition)
     {
-        if (!IsShapeAvailable(index) || field == null || activeFigureController == null ||
+        if (field == null || !CanPlaceShapeAnywhere(index) || activeFigureController == null ||
             activeFigureController.HasActiveFigure) return null;
         var placer = FindObjectOfType<ShapePlacer>();
         if (placer != null && placer.IsResolving) return null;
         var data = assignedShapes[index];
-        if (!data.offer.TryFit(field.Model, out var fitted, out var anchor)) return null;
-        // If the board changed, display and spawn the same newly fitting orientation.
-        data.offer = fitted;
-        RefreshPreview(index);
         var instance=CreateShapeObject(data);
         instance.transform.SetPositionAndRotation(spawnPosition,field.transform.rotation*data.GetRotation());
         instance.SetActive(true);
         activeFigureController.SetField(field);
-        activeFigureController.SetActiveFigure(instance, new Vector3Int(anchor.x, anchor.y, anchor.z), data);
+        activeFigureController.SetActiveFigure(instance,data);
         return instance;
     }
 

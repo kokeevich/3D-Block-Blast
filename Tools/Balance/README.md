@@ -50,3 +50,31 @@ weights. Legacy Resources prefabs are retained as assets, but their old category
 weights no longer drive gameplay. The selected catalog geometry is assigned to
 an inactive FigureGridShape before Awake; its mesh, ghost, thumbnail and rules
 therefore use the same cells. Geometry is no longer inferred from unrelated art.
+
+## Paired input comparison
+
+```sh
+dotnet run --project Tools/Balance/BalanceSimulation.csproj -- --paired
+```
+
+This freezes 80 sets per seed before either agent sees a board. Each pair gets
+identical catalog indices and displayed orientations (the sequence checksum is
+printed in both rows). The normal runtime's board-dependent rescue is excluded
+in this benchmark: otherwise different agent boards could produce different
+replacement pieces even with the same random seed. Catalog weights/stages and
+clearing rules stay the same. This is a controlled-input test, not an exact
+replay of the runtime's adaptive offer fallback.
+
+`confirm-default` only places displayed shapes at the neutral start on the -Z
+face, with a fixed viewpoint, without moving or rotating. `clear-seeking` uses
+its existing legal-pose search. Results for seeds 0–11 are in `paired-results.txt`:
+
+| Agent | Placements | Stop reason |
+| --- | --- | --- |
+| Confirm default | 1–2 (median 1) | Manual input required, 12/12 |
+| Clear-seeking | 44–70 (median 50) | Game Over, 12/12 |
+
+A blocked default preview with another valid placement is **not Game Over**.
+The first agent is simply unable to continue under its no-movement restriction.
+These observations check removal of spawn assistance; they do not establish
+human difficulty or justify changing field size or shape weights again.

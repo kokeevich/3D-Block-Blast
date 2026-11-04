@@ -14,7 +14,7 @@ In the current cloud instance the SDK is installed outside the checkout:
 /workspace/tools/dotnet/dotnet test Tools/Tests/BoardModel.Tests.csproj
 ```
 
-65 cases cover occupancy, non-origin placement, boundaries, overlap rejection
+75 cases cover occupancy, non-origin placement, boundaries, overlap rejection
 without partial writes, invalid shapes, full/incomplete planes on all axes,
 intersecting plane clearing, and placement availability on a full board.
 Additional cases cover full lines on each axis, incomplete lines, parallel and
@@ -119,7 +119,7 @@ Over. Browsing hides placement-only actions instead of showing a disabled row.
 The board now displays 12 edges, a quiet floor guide and the active layer grid.
 Try all eight layers and both rotation buttons after turning the cube around both axes.
 
-Standalone model tests: 65 passed. Runtime and Unity integration-test sources
+Standalone model tests: 75 passed. Runtime and Unity integration-test sources
 compile against the actual Unity 2022.3.62f3 assemblies (including its matching
 UGUI and test-runner references). Scene/UI interaction tests remain unrun in the
 cloud because the editor has no activated license. Compilation does not verify
@@ -148,7 +148,7 @@ consistent scale, label separation and selected-card contrast.
 four-turn identity, stage boundaries, distinct offers, geometry connectivity,
 all cube rotations, deterministic seeded generation, and Game Over with isolated
 free cells. It also checks that the late-game fallback cannot reintroduce retired
-tiny pieces. All 65 standalone cases pass.
+tiny pieces. All 75 standalone cases pass.
 
 Additional Unity tests in `OfferInteractionTests` check a 90-degree turn and
 selection lock during its animation, plus the real Game Over event/overlay path
@@ -161,3 +161,28 @@ release; dragging an active figure still moves its ghost instead of the board.
 The exact gameplay catalog and balance simulations are documented in
 `../Balance/README.md`. Test random and careful human play before treating the
 sampled agent move counts as a target session length.
+
+
+### Manual placement and run statistics
+
+Selection now preserves the displayed orientation. `PlacementFrame.StartAnchor`
+centers the shape on the nearest geometrically fitting layer using only its
+bounds; it never reads occupied cells. A blocked start stays red, confirmation
+is disabled, and a player must drag, change depth or rotate. Other legal positions
+still count when deciding availability and Game Over.
+
+`ManualPlacementTests` covers all six faces and all catalog rotations, blocked
+starts with legal moves elsewhere, and statistics including unique cleared cells
+in the occupancy peak. Statistics count successful placements only. Final results
+show moves, cleared lines and the maximum occupied percentage *before* clearing.
+
+The added Unity selection test occupies one initial target cell, cancels and
+reselects the offer, and checks that position/orientation are unchanged, placement
+is disabled, Game Over is false, and no move was counted. Unity-specific tests
+compile against the actual editor assemblies but remain unrun without a license.
+Try the same sequence in Game, manually move to a free position, then confirm.
+Check the new result statistics after both a placement-only and a clearing move.
+
+`Tools/Balance/paired-results.txt` records a controlled comparison on identical
+offer tapes; the limitations and distinction between manual input required and
+Game Over are documented in `Tools/Balance/README.md`.

@@ -41,33 +41,22 @@ public class ActiveFigureController : MonoBehaviour
         fieldTransform = value != null ? value.transform : null;
     }
 
-    public void SetActiveFigure(GameObject figure, Vector3Int start, ShapeInstanceData offerData)
+    public void SetActiveFigure(GameObject figure, ShapeInstanceData offerData)
     {
         ClearActiveFigure();
         if (colorBlock == null) colorBlock = new MaterialPropertyBlock();
         activeFigure = figure;
         gridShape = figure.GetComponent<FigureGridShape>();
         data = offerData;
-        currentGridPosition = start;
         var camera = Camera.main;
         Vector3 toCamera = camera != null ? camera.transform.position - fieldTransform.position : -fieldTransform.forward;
         Vector3 right = camera != null ? camera.transform.right : fieldTransform.right;
         Vector3 up = camera != null ? camera.transform.up : fieldTransform.up;
         Frame = new PlacementFrame(Direction(fieldTransform.InverseTransformDirection(toCamera)),
             Direction(fieldTransform.InverseTransformDirection(right)), Direction(fieldTransform.InverseTransformDirection(up)));
-        // Start near the camera and around the middle of the face, rather than
-        // hiding every new offer in the first free corner of the board.
-        Vector3Int max = Vector3Int.zero;
-        var rotated = GetRotatedCells();
-        foreach (var c in rotated) max = Vector3Int.Max(max,c);
-        var centered = new BoardModel.Cell((7-max.x)/2,(7-max.y)/2,(7-max.z)/2);
-        for (int depth=0;depth<8;depth++)
-        {
-            var candidate = ToVector(Frame.AtDepth(centered,depth));
-            if (!field.CanPlaceShape(candidate,rotated)) continue;
-            currentGridPosition = candidate;
-            break;
-        }
+        // A neutral, repeatable preview may be blocked. Choosing a free position
+        // and orientation is the player's move, not the spawn system's move.
+        currentGridPosition=ToVector(Frame.StartAnchor(data.offer.Cells));
         // Keep the source object for shape/color data; render exact target cells instead.
         foreach (var renderer in figure.GetComponentsInChildren<Renderer>(true)) renderer.enabled = false;
         ghost = new GameObject("PlacementGhost").transform;
@@ -125,13 +114,6 @@ public class ActiveFigureController : MonoBehaviour
             ShapeRules.RotateOrientation(data.offer.Orientation, localAxis));
         data.onRotationChanged?.Invoke();
         RefreshGhost();
-    }
-
-    public bool TryFindAnyPlacement()
-    {
-        if (!HasActiveFigure || !field.TryFindPlacement(GetRotatedCells(), out var pos)) return false;
-        SetGridPosition(pos);
-        return true;
     }
 
     private void LateUpdate() { if (HasActiveFigure) RefreshGhost(); }

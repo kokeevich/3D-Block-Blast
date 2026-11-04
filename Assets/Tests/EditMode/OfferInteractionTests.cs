@@ -105,6 +105,39 @@ public class OfferInteractionTests
         yield return new ExitPlayMode();
     }
 
+    [UnityTest]
+    public IEnumerator ReSelectingAnOfferDoesNotAutoRotateOrAvoidAnOccupiedStart()
+    {
+        yield return new EnterPlayMode();
+        yield return SceneManager.LoadSceneAsync("Game");
+        yield return null; yield return null;
+        var managerType=Type.GetType("GameManager, Assembly-CSharp",true);
+        var manager=UnityEngine.Object.FindObjectOfType(managerType);
+        var controllerType=Type.GetType("ActiveFigureController, Assembly-CSharp",true);
+        var controller=UnityEngine.Object.FindObjectOfType(controllerType);
+        Assert.IsTrue((bool)managerType.GetMethod("TrySelectOffer").Invoke(manager,new object[] { 0 }));
+        Vector3Int start=(Vector3Int)controllerType.GetProperty("CurrentGridPosition").GetValue(controller);
+        var cells=(Vector3Int[])controllerType.GetMethod("GetRotatedCells").Invoke(controller,null);
+        var data=controllerType.GetProperty("ActiveOffer").GetValue(controller);
+        var offer=(ShapeOffer)data.GetType().GetField("offer").GetValue(data);
+        int rotation=offer.Orientation;
+        managerType.GetMethod("CancelSelection").Invoke(manager,null);
+        var fieldType=Type.GetType("Field3D, Assembly-CSharp",true);
+        var field=UnityEngine.Object.FindObjectOfType(fieldType);
+        var board=(BoardModel)fieldType.GetProperty("Model").GetValue(field);
+        var blocked=start+cells[0]; board.SetOccupied(blocked.x,blocked.y,blocked.z,true);
+        Assert.IsTrue((bool)managerType.GetMethod("TrySelectOffer").Invoke(manager,new object[] { 0 }));
+        yield return null;
+        Assert.AreEqual(start,controllerType.GetProperty("CurrentGridPosition").GetValue(controller));
+        data=controllerType.GetProperty("ActiveOffer").GetValue(controller);
+        Assert.AreEqual(rotation,((ShapeOffer)data.GetType().GetField("offer").GetValue(data)).Orientation);
+        Assert.IsFalse((bool)controllerType.GetMethod("CanPlaceAtCurrent").Invoke(controller,null));
+        Assert.IsFalse(GameObject.Find("ConfirmPlacement").GetComponent<Button>().interactable);
+        Assert.IsFalse((bool)managerType.GetProperty("IsGameOver").GetValue(manager));
+        Assert.AreEqual(0,((RunStatistics)managerType.GetProperty("Statistics").GetValue(manager)).Moves);
+        yield return new ExitPlayMode();
+    }
+
     private static void ClickVisibleButton(Button button)
     {
         Canvas.ForceUpdateCanvases();

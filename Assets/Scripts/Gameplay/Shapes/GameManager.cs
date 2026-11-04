@@ -24,6 +24,7 @@ public class GameManager : MonoBehaviour
     [SerializeField] private Button restartButton;
 
     private FieldRotator fieldRotator;
+    public RunStatistics Statistics { get; } = new RunStatistics();
     private int score;
     private int bestScore;
     private bool isGameOver;
@@ -104,6 +105,7 @@ public class GameManager : MonoBehaviour
         // Placement + lines + simultaneous-line combo + rare full-plane bonus.
         int gained = clearResult.Score(cellsCount, cellsPerBlock);
         score += gained;
+        Statistics.RecordPlacement(clearResult,Field3D.Size*Field3D.Size*Field3D.Size-field.CountFreeCells());
         UpdateScoreUI();
 
         // Сообщим селектору, что фигура использована
