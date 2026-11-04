@@ -17,7 +17,6 @@ public class VoxelField : MonoBehaviour
     {
         field = GetComponent<Field3D>();
         figure = FindObjectOfType<ActiveFigureController>();
-        HideLegacyFieldModel();
         frameMesh = CreateMesh("Board Frame",new Color(0.30f,0.48f,0.47f,0.72f),out frameRenderer);
         floorMesh = CreateMesh("Floor Guide",new Color(0.26f,0.46f,0.43f,0.25f),out floorRenderer);
         layerMesh = CreateMesh("Active Layer",new Color(0.08f,0.58f,0.42f,0.40f),out layerRenderer);
@@ -37,12 +36,6 @@ public class VoxelField : MonoBehaviour
         }
         Upload(floorMesh,vertices);
         SetVisibility(visible);
-    }
-    private void HideLegacyFieldModel()
-    {
-        if (transform.parent == null) return;
-        foreach (var renderer in transform.parent.GetComponentsInChildren<Renderer>(true))
-            if (!renderer.transform.IsChildOf(transform)) renderer.enabled=false;
     }
     private void LateUpdate()
     {

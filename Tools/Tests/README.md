@@ -82,9 +82,10 @@ result. Unity's own EditMode attempt stopped at licensing before test execution.
    offers, Game Over must only occur when all of their allowed rotations fail;
    catalog shapes that were not offered do not postpone Game Over.
 
-Existing scene component names/GUIDs are retained. `SwipeZoneFigure` and
-`GameInputBinder` remain as compatibility components; gesture interpretation
-is centralized in `FieldRotator` to prevent duplicate movement on release.
+Core gameplay component GUIDs are retained. The legacy `SwipeZoneFigure`,
+`GameInputBinder`, GridManager and old UI instances were removed from Game.
+Gesture interpretation is centralized in FieldRotator and uses the runtime
+HUD's gesture area.
 
 ### Offer click regression
 
@@ -99,13 +100,15 @@ without an activated Unity license.
 Regression cause: the previous layout moved the offer slots underneath the
 transparent `SwipeZoneFigure` Image, which was still a UI raycast target.
 The raw gesture handler does not need those Images to receive EventSystem hits.
-Both gesture Images now have raycastTarget disabled in the scene and at startup.
+The gesture Images were first made non-raycastable and have since been removed
+along with the retired Canvas; input now uses only the runtime HUD.
 
 
 ### Updated game screen
 
-The old wallpaper Canvas and 3D offer previews are hidden at runtime; gameplay
-components inside the Canvas remain active. A new safe-area HUD shows score,
+The old wallpaper Canvas, 3D offer containers and imported field model have
+been removed from Game. ShapePlacer is an independent gameplay root, and the
+generator always produces three offers without depending on old preview slots. A new safe-area HUD shows score,
 record, three large cards and contextual placement actions. Decorative graphics
 have raycastTarget=false; only actual buttons receive hits. New cards call the
 central GameManager.TrySelectOffer path, with selection changes permitted before
@@ -233,3 +236,27 @@ Transparent and guide shaders live in Resources so Android builds retain them.
 Shaders use the built-in render pipeline, transparent blending and shader model
 3.0 derivatives for anti-aliased cube outlines. GPU rendering/performance and
 screen-size readability remain device checks, not validated cloud outcomes.
+
+
+### Authored Game scene cleanup
+
+Before Play, Game now contains only camera, light, EventSystem, field and game
+controllers; its background already matches the muted game palette. Board meshes
+and the current HUD are generated at runtime, so the pre-Play Game view is a
+clean background rather than the retired wallpaper and FBX grid.
+
+The field was detached from the removed imported model while preserving world
+position (2, 2.5, -1.75) and uniform world scale 0.5. Gameplay references are wired
+explicitly in the scene. ShapePlacer no longer lives in a UI region; the selector
+uses three logical offers, and controls no longer hide arbitrary scene Canvases.
+MainMenu and shared resource assets are not deleted by this scene cleanup.
+
+Local serialized fileID references in the saved scene were checked for dangling
+links. All 88 standalone model tests pass and both runtime/test sources compile.
+`GameSceneCleanupTests` checks the saved scene hierarchy, field scale, component
+links and lack of legacy UI/model in Unity. Open MainMenu (or another scene)
+before running this asset test: it explicitly skips if Game is already open so
+it will not close or replace the user's potentially unsaved work. The test loads
+Game additively and closes only the scene it opened. It remains unrun in the cloud
+without a Unity license; the existing Play Mode tests still cover bootstrapping,
+card interaction, placement, XRay and Game Over on the actual Game scene.

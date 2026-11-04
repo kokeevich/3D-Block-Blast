@@ -1,9 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.EventSystems;
 
-public class ShapePlacer : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
+public class ShapePlacer : MonoBehaviour
 {
     [SerializeField] private ActiveFigureController figureController;
     [SerializeField] private Field3D field;
@@ -36,9 +35,6 @@ public class ShapePlacer : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     public void SetField(Field3D f) { field = f; }
     public void SetFigureController(ActiveFigureController c) { figureController = c; }
     public void SetPlaneClearer(PlaneClearer c) { planeClearer = c; }
-
-    public void OnPointerDown(PointerEventData eventData) { }
-    public void OnPointerUp(PointerEventData eventData) { }
 
     public void TryPlaceActive()
     {

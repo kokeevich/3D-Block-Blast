@@ -6,8 +6,8 @@ public class Field3D : MonoBehaviour
 {
     public const int Size = BoardModel.Size;
 
-    // GameFieldRoot находится внутри старого FBX с масштабом 0.5.
-    // Локальный шаг 1.0 поэтому соответствует мировому размеру блока 0.5.
+    // GameFieldRoot keeps the former world scale (0.5) directly on its root.
+    // A local cell size of 1 therefore still produces 0.5-unit world blocks.
     [SerializeField] private float cellSize = 1f;
 
     public float CellSize => cellSize;

@@ -50,21 +50,6 @@ public class MobilePlacementControls : MonoBehaviour
         font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         MakeRoundedSprite();
         if (figure != null) figure.SetPreviewColors(new Color(0.08f,0.68f,0.43f),new Color(0.94f,0.31f,0.23f));
-        // Preserve gameplay components inside the old Canvas, while replacing
-        // its wallpaper, world-space previews and invisible hit regions.
-        foreach (var oldCanvas in FindObjectsOfType<Canvas>())
-        {
-            oldCanvas.enabled = false;
-            var raycaster = oldCanvas.GetComponent<GraphicRaycaster>();
-            if (raycaster != null) raycaster.enabled = false;
-        }
-        if (selector != null)
-        {
-            selector.ShowLegacyPreviews = false;
-            if (selector.spawnButtons != null)
-                foreach (var slot in selector.spawnButtons)
-                    if (slot != null && slot.parent != null) slot.parent.gameObject.SetActive(false);
-        }
         canvasObject = new GameObject("GameHUD",typeof(Canvas),typeof(CanvasScaler),typeof(GraphicRaycaster));
         canvas = canvasObject.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;

@@ -3,7 +3,6 @@ using UnityEngine;
 /// <summary>Axis-aligned quarter turns, camera-relative placement and pinch zoom.</summary>
 public class FieldRotator : MonoBehaviour
 {
-    public RectTransform swipeZone;
     [SerializeField] private float animationTime = 0.22f;
     [SerializeField] private float minSwipeScreenPercent = 0.03f;
     private Vector2 swipeStart;
@@ -16,8 +15,6 @@ public class FieldRotator : MonoBehaviour
     private MobilePlacementControls controls;
     private GameManager game;
     private Camera view;
-    private RectTransform figureZone;
-    private ShapeSpawnButton[] offerButtons;
     private bool dragging, suppressUntilReleased, pinching;
     private int fingerId;
     private float lastPinch, initialDistance, initialOrtho;
@@ -32,13 +29,6 @@ public class FieldRotator : MonoBehaviour
         placer = FindObjectOfType<ShapePlacer>();
         controls = FindObjectOfType<MobilePlacementControls>();
         game = FindObjectOfType<GameManager>();
-        var zone = FindObjectOfType<SwipeZoneFigure>();
-        figureZone = zone != null ? zone.GetComponent<RectTransform>() : null;
-        // Raw input owns gestures. Transparent UI regions must not consume
-        // EventSystem raycasts over the offer cards below them.
-        DisableGestureRaycast(swipeZone);
-        DisableGestureRaycast(figureZone);
-        offerButtons = FindObjectsOfType<ShapeSpawnButton>();
         view = Camera.main;
         float best=-1;
         for (int i=0;i<ShapeRules.Orientations.Count;i++)
@@ -54,29 +44,8 @@ public class FieldRotator : MonoBehaviour
         }
     }
 
-    private static void DisableGestureRaycast(RectTransform region)
-    {
-        if (region == null) return;
-        var graphic = region.GetComponent<UnityEngine.UI.Graphic>();
-        if (graphic != null) graphic.raycastTarget = false;
-    }
-
     private bool Blocked => (placer != null && placer.IsResolving) || (game != null && game.IsGameOver);
-    private bool InZone(Vector2 position)
-    {
-        if (controls != null) return controls.IsBoardArea(position);
-        if (offerButtons != null)
-            foreach (var button in offerButtons)
-                if (button != null && Contains(button.GetComponent<RectTransform>(), position)) return false;
-        return Contains(swipeZone, position) || Contains(figureZone, position);
-    }
-    private static bool Contains(RectTransform rect, Vector2 position)
-    {
-        if (rect == null) return false;
-        var canvas = rect.GetComponentInParent<Canvas>();
-        return RectTransformUtility.RectangleContainsScreenPoint(rect, position,
-            canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null);
-    }
+    private bool InZone(Vector2 position) => controls!=null && controls.IsBoardArea(position);
 
     private void Update()
     {

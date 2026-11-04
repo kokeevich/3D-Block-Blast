@@ -1,6 +1,5 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.UI;
 
 public class GameManager : MonoBehaviour
 {
@@ -10,18 +9,8 @@ public class GameManager : MonoBehaviour
     [SerializeField] private Field3D field;
     [SerializeField] private ShapePlacer shapePlacer;
 
-    [Header("Spawn Buttons")]
-    [SerializeField] private ShapeSpawnButton[] spawnButtons; // length 3
-
     [Header("Score")]
-    [SerializeField] private Text scoreText;
-    [SerializeField] private Text bestScoreText;
-    [SerializeField] private int cellsPerBlock = 1;
-
-    [Header("Game Over")]
-    [SerializeField] private GameObject gameOverPanel;
-    [SerializeField] private Text gameOverScoreText;
-    [SerializeField] private Button restartButton;
+    [SerializeField] private int cellsPerBlock=1;
 
     private FieldRotator fieldRotator;
     public RunStatistics Statistics { get; } = new RunStatistics();
@@ -66,40 +55,6 @@ public class GameManager : MonoBehaviour
         var controls = GetComponent<MobilePlacementControls>();
         if (controls == null) controls = gameObject.AddComponent<MobilePlacementControls>();
         controls.Initialize(activeFigureController, shapePlacer, this);
-
-        // Привязка кнопок спавна
-        AutoFindSpawnButtons();
-        BindSpawnButtons();
-
-        // UI
-        if (gameOverPanel != null) gameOverPanel.SetActive(false);
-        if (restartButton != null) restartButton.onClick.AddListener(RestartGame);
-        UpdateScoreUI();
-    }
-
-    void AutoFindSpawnButtons()
-    {
-        // Если кнопки уже привязаны — оставляем
-        if (spawnButtons != null && spawnButtons.Length >= 3) return;
-
-        // Поищем на сцене все ShapeSpawnButton и отсортируем по buttonIndex
-        var all = FindObjectsOfType<ShapeSpawnButton>();
-        if (all == null || all.Length == 0) return;
-
-        System.Array.Sort(all, (a, b) => a.buttonIndex.CompareTo(b.buttonIndex));
-        spawnButtons = all;
-    }
-
-    void BindSpawnButtons()
-    {
-        if (spawnButtons == null) return;
-        for (int i = 0; i < spawnButtons.Length; i++)
-        {
-            int idx = i;
-            if (spawnButtons[i] == null) continue;
-            spawnButtons[i].shapeSelector = shapeSelector;
-            spawnButtons[i].buttonIndex = idx;
-        }
     }
 
     public void HandleShapePlaced(int cellsCount, BoardModel.ClearResult clearResult)
@@ -108,7 +63,6 @@ public class GameManager : MonoBehaviour
         int gained = clearResult.Score(cellsCount, cellsPerBlock);
         score += gained;
         Statistics.RecordPlacement(clearResult,Field3D.Size*Field3D.Size*Field3D.Size-field.CountFreeCells());
-        UpdateScoreUI();
 
         // Сообщим селектору, что фигура использована
         if (lastSpawnedButtonIndex >= 0 && shapeSelector != null)
@@ -142,20 +96,6 @@ public class GameManager : MonoBehaviour
             bestScore = score;
             PlayerPrefs.SetInt(BEST_SCORE_KEY, bestScore);
         }
-        UpdateScoreUI();
-
-        if (gameOverPanel != null)
-        {
-            gameOverPanel.SetActive(true);
-            if (gameOverScoreText != null)
-                gameOverScoreText.text = $"Счёт: {score}\nРекорд: {bestScore}";
-        }
-    }
-
-    void UpdateScoreUI()
-    {
-        if (scoreText != null) scoreText.text = score.ToString();
-        if (bestScoreText != null) bestScoreText.text = bestScore.ToString();
     }
 
     public bool TrySelectOffer(int index)

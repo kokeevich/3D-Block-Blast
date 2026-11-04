@@ -7,19 +7,18 @@ public class BalancedShapeSelector : MonoBehaviour
 {
     [SerializeField] private ActiveFigureController activeFigureController;
     [SerializeField] private Field3D field;
-    public Transform[] spawnButtons;
+    public const int OfferCount=3;
 
     private readonly List<ShapeInstanceData> catalog = new List<ShapeInstanceData>();
     private ShapeInstanceData[] assignedShapes;
     private bool[] used;
     private readonly System.Random random = new System.Random();
     public int PlacedShapes { get; private set; }
-    public bool ShowLegacyPreviews { get; set; } = true;
     public event Action OnOfferChanged;
     public event Action OnShapesAllUsed;
     public event Action OnNewSetGenerated;
     public event Action OnNoValidPlacement;
-    public int ButtonCount => assignedShapes?.Length ?? spawnButtons?.Length ?? 0;
+    public int ButtonCount => OfferCount;
     public bool IsShapeAvailable(int i) => assignedShapes != null && used != null &&
         i >= 0 && i < assignedShapes.Length && !used[i] && assignedShapes[i] != null;
 
@@ -67,9 +66,7 @@ public class BalancedShapeSelector : MonoBehaviour
 
     public void GenerateThreeShapes(int freeCellCount)
     {
-        int count = Mathf.Min(3, spawnButtons?.Length ?? 0);
-        if (count!=3 || catalog.Count==0)
-        { Debug.LogError("Three offer slots and a valid gameplay catalog are required."); return; }
+        const int count=OfferCount;
         // Keep the legacy signature, but low free-cell counts no longer bias
         // the draw towards tiny pieces or reduce the current difficulty.
         if (field==null) { Debug.LogError("Cannot generate offers without the board."); return; }
@@ -78,12 +75,11 @@ public class BalancedShapeSelector : MonoBehaviour
         used = new bool[count];
         for (int i = 0; i < count; i++)
         {
-            int slot = i;
             assignedShapes[i].color = OfferColor(i);
-            assignedShapes[i].onRotationChanged = () => RefreshPreview(slot);
-            RefreshPreview(i);
+            assignedShapes[i].onRotationChanged = () => OnOfferChanged?.Invoke();
         }
         OnNewSetGenerated?.Invoke();
+        OnOfferChanged?.Invoke();
         if (field != null && !AnyRemainingShapeCanBePlaced()) OnNoValidPlacement?.Invoke();
     }
 
@@ -95,8 +91,6 @@ public class BalancedShapeSelector : MonoBehaviour
         if (!IsShapeAvailable(index)) return false;
         used[index] = true;
         PlacedShapes++;
-        if (spawnButtons[index] != null)
-            foreach (Transform child in spawnButtons[index]) Destroy(child.gameObject);
         bool allUsed = Array.TrueForAll(used, value => value);
         if (allUsed)
         {
@@ -104,6 +98,7 @@ public class BalancedShapeSelector : MonoBehaviour
             GenerateThreeShapes(field != null ? field.CountFreeCells() : 512);
             return true;
         }
+        OnOfferChanged?.Invoke();
         if (field != null && !AnyRemainingShapeCanBePlaced()) OnNoValidPlacement?.Invoke();
         return false;
     }
@@ -132,77 +127,6 @@ public class BalancedShapeSelector : MonoBehaviour
         var shape=instance.AddComponent<FigureGridShape>();
         shape.cells=Array.ConvertAll(data.baseCells,c => new Vector3Int(c.x,c.y,c.z));
         return instance;
-    }
-
-    void RefreshPreview(int i)
-    {
-        OnOfferChanged?.Invoke();
-        if (!ShowLegacyPreviews) return;
-        var data = assignedShapes[i];
-        if (data == null || spawnButtons[i] == null) return;
-
-        foreach (Transform child in spawnButtons[i])
-            Destroy(child.gameObject);
-
-        GameObject preview=CreateShapeObject(data);
-        preview.transform.SetParent(spawnButtons[i],false);
-        preview.SetActive(true);
-        preview.transform.localPosition = Vector3.zero;
-        preview.transform.localRotation = data.GetRotation();
-
-        float scale = 0.25f;
-        switch (data.category)
-        {
-            case "Small":  scale = 0.30f; break;
-            case "Medium": scale = 0.30f; break;
-            case "Large":  scale = 0.25f; break;
-            default:       scale = 0.20f; break;
-        }
-        preview.transform.localScale = Vector3.one * scale;
-
-        DisableComponentsForPreview(preview);
-
-        // Приглушим прозрачность, чтобы превью не выглядело как игровой объект
-        SetPreviewAlpha(preview, 0.85f);
-    }
-
-    void SetPreviewAlpha(GameObject obj, float alpha)
-    {
-        var rends = obj.GetComponentsInChildren<MeshRenderer>(true);
-        foreach (var r in rends)
-        {
-            if (r.material == null) continue;
-            // Прозрачный материал — используем стандартный режим Fade
-            var mat = r.material;
-            if (mat.HasProperty("_Surface")) mat.SetFloat("_Surface", 1f); // 0 Opaque, 1 Transparent
-            if (mat.HasProperty("_Blend")) mat.SetFloat("_Blend", 0f);
-            mat.SetOverrideTag("RenderType", "Transparent");
-            mat.renderQueue = 3000;
-            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            mat.SetInt("_ZWrite", 0);
-            if (mat.HasProperty("_BaseColor"))
-            {
-                var c = mat.GetColor("_BaseColor");
-                c.a = alpha;
-                mat.SetColor("_BaseColor", c);
-            }
-            if (mat.HasProperty("_Color"))
-            {
-                var c = mat.GetColor("_Color");
-                c.a = alpha;
-                mat.SetColor("_Color", c);
-            }
-        }
-    }
-
-    void DisableComponentsForPreview(GameObject obj)
-    {
-        var collider = obj.GetComponent<Collider>();
-        if (collider) collider.enabled = false;
-
-        var rb = obj.GetComponent<Rigidbody>();
-        if (rb) rb.isKinematic = true;
     }
 
 }
