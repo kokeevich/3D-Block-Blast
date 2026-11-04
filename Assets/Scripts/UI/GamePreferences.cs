@@ -2,6 +2,10 @@ using UnityEngine;
 
 public static class GamePreferences
 {
+    public const string FreeRotationKey="blockblast.rotation.free";
+    public static bool FreeRotation => PlayerPrefs.GetInt(FreeRotationKey,0)!=0;
+    public static void SetFreeRotation(bool enabled)
+    { PlayerPrefs.SetInt(FreeRotationKey,enabled ? 1 : 0); Save(); }
     public const string SoundKey="blockblast.sound";
     public const string VolumeKey="blockblast.volume";
     public const string TutorialKey="blockblast.tutorial.completed";

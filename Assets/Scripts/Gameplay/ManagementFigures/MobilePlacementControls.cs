@@ -18,7 +18,7 @@ public class MobilePlacementControls : MonoBehaviour
     private Field3D field;
     private BoardVisibility visibility;
     private Button xrayToggle,pauseButton;
-    private Text xrayLabel;
+    private Text xrayLabel,gestureHelp;
     private GameObject canvasObject;
     private Canvas canvas;
     private RectTransform safeRoot, boardArea, tray, hud;
@@ -107,7 +107,7 @@ public class MobilePlacementControls : MonoBehaviour
         browseHelp = Rect("BrowseHelp",tray,new Vector2(0.04f,0.03f),new Vector2(0.96f,0.46f)).gameObject;
         Label("Instruction",browseHelp.transform,"Выберите фигуру и найдите ей место",new Vector2(0,0.55f),Vector2.one,40,Ink);
         Label("Rule",browseHelp.transform,"Соберите 8 блоков в линию, чтобы её очистить",new Vector2(0,0.24f),new Vector2(1,0.6f),34,Muted);
-        Label("Gestures",browseHelp.transform,"Свайп — поворот на 90°   ·   Два пальца — масштаб",Vector2.zero,new Vector2(1,0.3f),30,Muted);
+        gestureHelp=Label("Gestures",browseHelp.transform,"Свайп — поворот на 90°   ·   Два пальца — масштаб",Vector2.zero,new Vector2(1,0.3f),30,Muted);
         placementActions = Rect("PlacementActions",tray,Vector2.zero,new Vector2(1,0.53f)).gameObject;
         var actions = placementActions.transform;
         Label("DepthCaption",actions,"ГЛУБИНА",new Vector2(0.03f,0.82f),new Vector2(0.5f,1),28,Muted,TextAnchor.MiddleLeft);
@@ -177,7 +177,8 @@ public class MobilePlacementControls : MonoBehaviour
         modeText.text = game.IsGameOver ? "Спасибо за игру!" : placer.IsResolving ? "Отличный ход!" :
             !figure.HasActiveFigure ? "Выберите фигуру" : figure.CanPlaceAtCurrent() ? "Отличное место!" : "Попробуем другое место";
         modeText.color = figure.HasActiveFigure && !figure.CanPlaceAtCurrent() ? new Color(0.78f,0.26f,0.20f) : Accent;
-        hint.text = placer.IsResolving ? "" : !figure.HasActiveFigure ? "Свайпните, чтобы повернуть куб на 90°" :
+        gestureHelp.text=GamePreferences.FreeRotation ? "Свайп — свободное вращение   ·   Два пальца — масштаб" : "Свайп — поворот на 90°   ·   Два пальца — масштаб";
+        hint.text = placer.IsResolving ? "" : !figure.HasActiveFigure ? (GamePreferences.FreeRotation ? "Проведите по кубу, чтобы вращать его свободно" : "Свайпните, чтобы повернуть куб на 90°") :
             figure.CanPlaceAtCurrent() ? "Двигайте фигуру • меняйте глубину" : "Сдвиньте фигуру или смените глубину";
         if (xray && !placer.IsResolving && !game.IsGameOver)
             hint.text=!figure.HasActiveFigure ? "Рентген: видны внутренние блоки" : figure.CanPlaceAtCurrent() ?

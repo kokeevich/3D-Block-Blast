@@ -1,11 +1,12 @@
 using UnityEngine;
 
-/// <summary>Axis-aligned quarter turns, camera-relative placement and pinch zoom.</summary>
+/// <summary>Selectable free orbit or axis-aligned quarter turns, with pinch zoom.</summary>
 public class FieldRotator : MonoBehaviour
 {
     [SerializeField] private float animationTime = 0.22f;
     [SerializeField] private float minSwipeScreenPercent = 0.03f;
-    private Vector2 swipeStart;
+    private Vector2 swipeStart,lastPointer;
+    private bool freeRotation,notifiedFreeTurn;
     private int boardOrientation;
     private Quaternion rotationStart,rotationTarget;
     private float rotationTime;
@@ -30,13 +31,8 @@ public class FieldRotator : MonoBehaviour
         controls = FindObjectOfType<MobilePlacementControls>();
         game = FindObjectOfType<GameManager>();
         view = Camera.main;
-        float best=-1;
-        for (int i=0;i<ShapeRules.Orientations.Count;i++)
-        {
-            float dot=Mathf.Abs(Quaternion.Dot(transform.rotation,GridRotation(i)));
-            if (dot>best) { best=dot; boardOrientation=i; }
-        }
-        transform.rotation=GridRotation(boardOrientation);
+        freeRotation=GamePreferences.FreeRotation;
+        if (!freeRotation) SnapToGrid();
         if (view != null)
         {
             initialDistance = Vector3.Distance(view.transform.position, transform.position);
@@ -44,11 +40,34 @@ public class FieldRotator : MonoBehaviour
         }
     }
 
+    private void SnapToGrid()
+    {
+        float best=-1;
+        for (int i=0;i<ShapeRules.Orientations.Count;i++)
+        {
+            float dot=Mathf.Abs(Quaternion.Dot(transform.rotation,GridRotation(i)));
+            if (dot>best) { best=dot; boardOrientation=i; }
+        }
+        transform.rotation=GridRotation(boardOrientation);
+    }
+
+    private void RefreshRotationMode()
+    {
+        if (freeRotation==GamePreferences.FreeRotation || Blocked) return;
+        // Finish an in-flight turn, and keep a selected figure's placement frame intact.
+        if (figure!=null && figure.HasActiveFigure) return;
+        if (IsRotating) transform.rotation=rotationTarget;
+        IsRotating=false; dragging=false; suppressUntilReleased=true;
+        freeRotation=GamePreferences.FreeRotation;
+        if (!freeRotation) SnapToGrid();
+    }
+
     private bool Blocked => (placer != null && placer.IsResolving) || (game != null && game.InputBlocked);
     private bool InZone(Vector2 position) => controls!=null && controls.IsBoardArea(position);
 
     private void Update()
     {
+        RefreshRotationMode();
         if (IsRotating && (game==null || !game.InputBlocked))
         {
             rotationTime+=Time.unscaledDeltaTime;
@@ -99,9 +118,9 @@ public class FieldRotator : MonoBehaviour
 
     private void Begin(Vector2 position)
     {
-        dragging = InZone(position);
+        dragging = !Blocked && !IsRotating && InZone(position);
         if (!dragging) return;
-        swipeStart=position;
+        swipeStart=lastPointer=position; notifiedFreeTurn=false;
         draggingFigure = figure != null && figure.HasActiveFigure;
         if (!draggingFigure) return;
         anchorStart = figure.CurrentGridPosition;
@@ -116,10 +135,24 @@ public class FieldRotator : MonoBehaviour
 
     private void Drag(Vector2 position)
     {
-        if (!dragging) return;
+        if (!dragging || Blocked || IsRotating) return;
         // Selection/cancellation during a pointer gesture cannot change its meaning.
         if (draggingFigure != (figure != null && figure.HasActiveFigure)) { dragging = false; return; }
-        if (!draggingFigure) return; // one turn is chosen on release, never a free orbit
+        if (!draggingFigure)
+        {
+            if (!freeRotation) return; // Axis mode chooses one quarter turn on release.
+            Vector2 delta=position-lastPointer; lastPointer=position;
+            float degrees=240f/Mathf.Max(1,Mathf.Min(Screen.width,Screen.height));
+            Quaternion yaw=Quaternion.AngleAxis(-delta.x*degrees,view.transform.up);
+            Quaternion pitch=Quaternion.AngleAxis(delta.y*degrees,view.transform.right);
+            transform.rotation=pitch*yaw*transform.rotation;
+            if (!notifiedFreeTurn && Vector2.Distance(position,swipeStart)>=Mathf.Max(16,Screen.height*minSwipeScreenPercent))
+            {
+                notifiedFreeTurn=true;
+                if (game!=null) game.NotifyTutorialAction(TutorialProgress.Action.RotateBoard);
+            }
+            return;
+        }
         var ray = view.ScreenPointToRay(position);
         if (!dragPlane.Raycast(ray, out float enter)) return;
         Vector3 localDelta = transform.InverseTransformVector(ray.GetPoint(enter) - dragStart) / figure.CellSize;
@@ -138,6 +171,7 @@ public class FieldRotator : MonoBehaviour
     }
     private void End(Vector2 position)
     {
+        if (freeRotation) { Drag(position); dragging=false; return; }
         bool turn=dragging && !draggingFigure && !Blocked && !IsRotating &&
             figure!=null && !figure.HasActiveFigure;
         dragging=false;

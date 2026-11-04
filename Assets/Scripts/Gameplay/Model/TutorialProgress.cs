@@ -18,7 +18,7 @@ public sealed class TutorialProgress
         Current=(Step)((int)Current+1);
         return Current==Step.Complete;
     }
-    public string Instruction => Current==Step.RotateBoard ? "Свайпните по кубу: поверните поле на 90°" :
+    public string Instruction => Current==Step.RotateBoard ? "Проведите по кубу, чтобы повернуть поле" :
         Current==Step.SelectShape ? "Нажмите на любую карточку фигуры" :
         Current==Step.MoveShape ? "Перетащите фигуру хотя бы на одну клетку" :
         Current==Step.ChangeDepth ? "Выберите другой слой кнопками 1–8" :

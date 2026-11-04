@@ -17,12 +17,50 @@ public class SessionInterfaceTests
     {
         PreferenceTestScope.Save("SessionTests.");
         PlayerPrefs.SetInt("blockblast.sound",0);
+        PlayerPrefs.SetInt("blockblast.rotation.free",0);
         R("GameLaunch").GetMethod("RequestTutorial").Invoke(null,new object[] { false });
     }
     [UnityTearDown] public IEnumerator RestorePreferences()
     {
         if (Application.isPlaying) yield return new ExitPlayMode();
         PreferenceTestScope.Restore("SessionTests.");
+    }
+
+    [UnityTest]
+    public IEnumerator RotationSettingPersistsAndFreeOrbitSnapsBackToAxes()
+    {
+        yield return new EnterPlayMode();
+        PlayerPrefs.SetInt("blockblast.tutorial.completed",1);
+        yield return Load("MainMenu");
+        Click("MenuSettings"); yield return null; Click("RotationToggle");
+        Assert.AreEqual(1,PlayerPrefs.GetInt("blockblast.rotation.free"));
+        Click("SettingsBack"); Click("PlayGame"); yield return WaitForScene("Game"); yield return null;
+        var rotator=(Component)Find("FieldRotator");
+        Vector2 point=Camera.main.WorldToScreenPoint(rotator.transform.position);
+        Quaternion initial=rotator.transform.rotation;
+        CallPrivate(rotator,"Begin",point); CallPrivate(rotator,"Drag",point+new Vector2(43,27));
+        CallPrivate(rotator,"End",point+new Vector2(43,27));
+        Quaternion free=rotator.transform.rotation;
+        Assert.Greater(Quaternion.Angle(initial,free),1);
+        Assert.IsFalse(Get<bool>(rotator,"IsRotating"));
+        Click("PauseGame"); yield return null;
+        CallPrivate(rotator,"Begin",point); CallPrivate(rotator,"Drag",point+Vector2.right*100);
+        Assert.Less(Quaternion.Angle(free,rotator.transform.rotation),.01f);
+        Click("PauseSettings"); yield return null; Click("RotationToggle");
+        Assert.AreEqual(0,PlayerPrefs.GetInt("blockblast.rotation.free"));
+        Click("SettingsBack"); Click("Resume"); yield return null; yield return null;
+        Quaternion snapped=rotator.transform.rotation;
+        foreach (var axis in new[] { Vector3.right,Vector3.up,Vector3.forward })
+        {
+            Vector3 v=snapped*axis;
+            Assert.Greater(Mathf.Max(Mathf.Abs(v.x),Mathf.Abs(v.y),Mathf.Abs(v.z)),.999f);
+        }
+        CallPrivate(rotator,"Begin",point); CallPrivate(rotator,"End",point+Vector2.right*100);
+        float deadline=Time.realtimeSinceStartup+5;
+        while (Get<bool>(rotator,"IsRotating") && Time.realtimeSinceStartup<deadline) yield return null;
+        Assert.AreEqual(90,Quaternion.Angle(snapped,rotator.transform.rotation),.01f);
+        Assert.AreEqual(0,Get<int>(Find("GameManager"),"Score"));
+        yield return new ExitPlayMode();
     }
 
     [UnityTest]
