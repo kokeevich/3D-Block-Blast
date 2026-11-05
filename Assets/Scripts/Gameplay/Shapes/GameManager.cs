@@ -33,6 +33,7 @@ public class GameManager : MonoBehaviour
     {
         initialized=true;
         GameFeedback.Prepare();
+        GameAds.Get();
         Time.timeScale=1; AudioListener.pause=false; GamePreferences.ApplyAudio();
         bestScore=GamePreferences.BestScore;
         practice=GameLaunch.ConsumeTutorialRequest();
@@ -112,7 +113,7 @@ public class GameManager : MonoBehaviour
     {
         if (session.GameOver || Transitioning) return;
         session.EndGame();
-        if (!practice) RunSaveStore.Clear();
+        if (!practice) { RunSaveStore.Clear(); if (!Tutorial.Active) GameAds.Get().RecordLoss(); }
         ReleasePause(); PersistProgress();
         if (!restoring) GameFeedback.Play(GameFeedback.Cue.GameOver);
     }
@@ -197,7 +198,9 @@ public class GameManager : MonoBehaviour
         PersistProgress();
         if (!session.TryBeginTransition()) return;
         ReleasePause();
-        Time.timeScale=1; SceneManager.LoadSceneAsync(name);
+        Time.timeScale=1;
+        if (IsGameOver && !practice && !Tutorial.Active) GameAds.Get().AfterLoss(() => SceneManager.LoadSceneAsync(name));
+        else SceneManager.LoadSceneAsync(name);
     }
 
     public void SaveSession()

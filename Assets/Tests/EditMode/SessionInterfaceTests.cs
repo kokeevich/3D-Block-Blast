@@ -29,6 +29,25 @@ public class SessionInterfaceTests
     private static RunSnapshot SavedRun() => (RunSnapshot)R("RunSaveStore").GetMethod("Load").Invoke(null,null);
 
     [UnityTest]
+    public IEnumerator EditorAdFallbackDoesNotBlockNavigationAndUsesTestSettings()
+    {
+        yield return new EnterPlayMode(); PlayerPrefs.SetInt("blockblast.tutorial.completed",1);
+        yield return Load("MainMenu");
+        var settings=Resources.Load("YandexAdsSettings"); Assert.IsNotNull(settings);
+        Assert.AreEqual("demo-banner-yandex",Get<string>(settings,"BannerId"));
+        Assert.AreEqual("demo-interstitial-yandex",Get<string>(settings,"InterstitialId"));
+        var ads=Find("GameAds"); int calls=0;
+        Call(ads,"AfterLoss",new Action(() => calls++)); Assert.AreEqual(1,calls);
+        Assert.IsFalse(Get<bool>(ads,"IsShowing"));
+        Click("PlayGame"); yield return WaitForScene("Game"); yield return null;
+        int before=PlayerPrefs.GetInt("blockblast.ads.losses",0);
+        ForceGameOver(); yield return null; Assert.AreEqual(before+1,PlayerPrefs.GetInt("blockblast.ads.losses"));
+        Click("GameOverMenu"); yield return WaitForScene("MainMenu");
+        Assert.IsFalse(Get<bool>(Find("GameAds"),"IsShowing")); Assert.IsFalse(AudioListener.pause);
+        yield return new ExitPlayMode();
+    }
+
+    [UnityTest]
     public IEnumerator ClearedBlocksAndGhostsAreReusedWithoutStalePlacementOrMaterial()
     {
         yield return new EnterPlayMode(); PlayerPrefs.SetInt("blockblast.tutorial.completed",1);

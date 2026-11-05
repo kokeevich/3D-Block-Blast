@@ -43,6 +43,17 @@
     "com.unity.modules.video": "1.0.0",
     "com.unity.modules.vr": "1.0.0",
     "com.unity.modules.wind": "1.0.0",
-    "com.unity.modules.xr": "1.0.0"
-  }
+    "com.unity.modules.xr": "1.0.0",
+    "com.yandex.mobileads": "https://github.com/yandexmobile/yandex-ads-unity-plugin.git?path=mobileads-sdk#2b5c0650918e003c06038e7738db698e0a0f428f"
+  },
+  "scopedRegistries": [
+    {
+      "name": "OpenUPM",
+      "url": "https://package.openupm.com",
+      "scopes": [
+        "com.yandex",
+        "com.google"
+      ]
+    }
+  ]
 }

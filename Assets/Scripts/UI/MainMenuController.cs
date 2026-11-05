@@ -4,6 +4,8 @@ using UnityEngine.UI;
 
 public class MainMenuController : MonoBehaviour
 {
+    private GameAds ads;
+    private float bannerFraction=-1;
     private ScreenWidgets ui;
     private SettingsView settings;
     private RectTransform title,kicker,hero,record,subtitle,playRect,settingsRect,bannerSpace,newGameRect;
@@ -17,6 +19,8 @@ public class MainMenuController : MonoBehaviour
     {
         Time.timeScale=1; AudioListener.pause=false; GamePreferences.ApplyAudio();
         if (Camera.main!=null) { Camera.main.clearFlags=CameraClearFlags.SolidColor; Camera.main.backgroundColor=GameTheme.Background; }
+        ads=GameAds.Get();
+        ads.SetMenuBanner(true,true);
         hasSave=RunSaveStore.Load()!=null;
         ui=new ScreenWidgets("MainMenuHUD",100);
         kicker=ui.Label("Kicker",ui.Root,"ОБЪЁМНАЯ ГОЛОВОЛОМКА",new Vector2(.08f,.94f),new Vector2(.92f,.98f),26,GameTheme.Accent).rectTransform;
@@ -52,7 +56,7 @@ public class MainMenuController : MonoBehaviour
     private void Launch(bool learn)
     {
         if (loading) return;
-        loading=true; GamePreferences.Save(); GameLaunch.RequestTutorial(learn);
+        loading=true; ads.SetMenuBanner(false,false); GamePreferences.Save(); GameLaunch.RequestTutorial(learn);
         play.interactable=options.interactable=newGame.interactable=false;
         play.GetComponentInChildren<Text>().text="Загрузка…";
         SceneManager.LoadSceneAsync("Game");
@@ -61,7 +65,9 @@ public class MainMenuController : MonoBehaviour
     {
         if (ui==null) return;
         ui.UpdateSafeArea(); settings.Refresh(); ScreenWidgets.FitModal(newGameCard);
-        if (width!=Screen.width || height!=Screen.height) Layout();
+        ads.SetMenuBanner(!loading,!loading && !settings.Visible && !newGameConfirm.activeSelf);
+        float fraction=RequiredBannerFraction();
+        if (width!=Screen.width || height!=Screen.height || Mathf.Abs(bannerFraction-fraction)>.001f) Layout();
         recordText.text=GamePreferences.BestScore.ToString();
         if (Input.GetKeyDown(KeyCode.Escape) && !loading)
         { if (newGameConfirm.activeSelf) newGameConfirm.SetActive(false); else if (settings.Visible) settings.Hide(); else Application.Quit(); }
@@ -85,6 +91,16 @@ public class MainMenuController : MonoBehaviour
             Place(record,.18f,.39f,.82f,.46f); Place(subtitle,.08f,.30f,.92f,.37f); Place(playRect,.08f,.18f,.92f,.27f);
             Place(bannerSpace,0,0,1,.11f); Place(newGameRect,.08f,.12f,.92f,.17f);
         }
+        float baseline=wide ? .14f : .11f;
+        bannerFraction=RequiredBannerFraction();
+        foreach (var content in new[] { title,kicker,hero,record,subtitle,playRect,newGameRect })
+        {
+            var min=content.anchorMin; var max=content.anchorMax;
+            min.y=bannerFraction+(min.y-baseline)*(1-bannerFraction)/(1-baseline);
+            max.y=bannerFraction+(max.y-baseline)*(1-bannerFraction)/(1-baseline);
+            content.anchorMin=min; content.anchorMax=max;
+        }
+        bannerSpace.anchorMax=new Vector2(1,bannerFraction);
         // Square touch target anchored inside the safe area, in either orientation.
         settingsRect.anchorMin=settingsRect.anchorMax=Vector2.one;
         settingsRect.pivot=Vector2.one;
@@ -92,10 +108,16 @@ public class MainMenuController : MonoBehaviour
         settingsRect.sizeDelta=new Vector2(size,size);
         settingsRect.anchoredPosition=new Vector2(-24,-24);
     }
+    private float RequiredBannerFraction()
+    {
+        float baseline=Screen.width>Screen.height ? .14f : .11f;
+        float pixels=ads!=null ? ads.BannerHeightPixels : 0;
+        return Mathf.Clamp(Mathf.Max(baseline,(pixels+24f*Screen.width/1080f)/Mathf.Max(1,Screen.safeArea.height)),baseline,.45f);
+    }
     private void OnApplicationPause(bool paused) { if (paused) GamePreferences.Save(); }
     private void OnApplicationFocus(bool focused) { if (!focused && !Application.isEditor) GamePreferences.Save(); }
     private void OnApplicationQuit() { GamePreferences.Save(); }
-    private void OnDestroy() { if (ui!=null) { GamePreferences.Save(); ui.Dispose(); } }
+    private void OnDestroy() { if (ads!=null) ads.SetMenuBanner(false,false); if (ui!=null) { GamePreferences.Save(); ui.Dispose(); } }
 }
 
 /// <summary>Vector gear, independent of the device font's Unicode coverage.</summary>

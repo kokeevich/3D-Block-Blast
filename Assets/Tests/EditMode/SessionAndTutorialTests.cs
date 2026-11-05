@@ -107,3 +107,32 @@ public class BoardRevisionTests
         Assert.AreEqual(512,board.CountFreeCells());
     }
 }
+
+public class AdExposureRulesTests
+{
+    [Test] public void FirstFinishedGameDoesNotShowAnInterstitial()
+    {
+        var rules=new AdExposureRules(); Assert.IsFalse(rules.CanShow(1000));
+        rules.RecordLoss(); Assert.IsFalse(rules.CanShow(1000));
+        rules.RecordLoss(); Assert.IsTrue(rules.CanShow(1000));
+    }
+    [Test] public void CooldownStartsOnlyWhenAnAdIsShown()
+    {
+        var rules=new AdExposureRules(2);
+        Assert.IsTrue(rules.CanShow(1000)); Assert.IsTrue(rules.CanShow(1001));
+        rules.RecordShown(1001);
+        Assert.IsFalse(rules.CanShow(1120)); Assert.IsTrue(rules.CanShow(1121));
+    }
+    [Test] public void RelaunchAndClockRollbackDoNotBypassCooldown()
+    {
+        var saved=new AdExposureRules(5); saved.RecordShown(1000);
+        var restored=new AdExposureRules(saved.Losses,saved.LastShown);
+        Assert.IsFalse(restored.CanShow(900)); Assert.IsFalse(restored.CanShow(1119));
+        Assert.IsTrue(restored.CanShow(1120));
+    }
+    [Test] public void CorruptNegativeCountersAreClamped()
+    {
+        var rules=new AdExposureRules(-1,-10); Assert.AreEqual(0,rules.Losses); Assert.AreEqual(0,rules.LastShown);
+        Assert.IsFalse(rules.CanShow(1000));
+    }
+}

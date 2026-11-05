@@ -6,9 +6,11 @@ using UnityEngine;
 // scene's OnDestroy saves, so tests never replace the player's real preferences.
 public static class PreferenceTestScope
 {
-    private static readonly string[] IntKeys={ "blockblast.haptics","blockblast.rotation.free","blockblast.sound","blockblast.tutorial.completed","blockblast.best" };
+    private static readonly string[] IntKeys={ "blockblast.ads.losses","blockblast.haptics","blockblast.rotation.free","blockblast.sound","blockblast.tutorial.completed","blockblast.best" };
     public static void Save(string scope)
     {
+        SessionState.SetBool(scope+"adShown.present",PlayerPrefs.HasKey("blockblast.ads.lastShown"));
+        SessionState.SetString(scope+"adShown",PlayerPrefs.GetString("blockblast.ads.lastShown","0"));
         SessionState.SetBool(scope+"run.present",PlayerPrefs.HasKey("blockblast.run.v1"));
         SessionState.SetString(scope+"run",PlayerPrefs.GetString("blockblast.run.v1",""));
         PlayerPrefs.DeleteKey("blockblast.run.v1");
@@ -19,6 +21,8 @@ public static class PreferenceTestScope
     }
     public static void Restore(string scope)
     {
+        if (SessionState.GetBool(scope+"adShown.present",false)) PlayerPrefs.SetString("blockblast.ads.lastShown",SessionState.GetString(scope+"adShown","0"));
+        else PlayerPrefs.DeleteKey("blockblast.ads.lastShown");
         if (SessionState.GetBool(scope+"run.present",false)) PlayerPrefs.SetString("blockblast.run.v1",SessionState.GetString(scope+"run",""));
         else PlayerPrefs.DeleteKey("blockblast.run.v1");
         foreach (string key in IntKeys)

@@ -343,3 +343,7 @@ visual layout require device/editor acceptance; compilation alone is not a pass.
 ## Полировка и Android Development Build
 
 Актуальная инструкция сборки и финальная проверка звука, вибрации, pooling, сохранений и FPS — в `ANDROID_RELEASE.md`. Модельный набор содержит 100 прошедших тестов. Добавленный Play Mode-сценарий `ClearedBlocksAndGhostsAreReusedWithoutStalePlacementOrMaterial` проверяет повторное использование объектов, исходный материал после рентгена, обновление валидности после изменения модели, переключатель вибрации и содержимое звукового банка. Он компилируется, но в облаке не выполнен из-за отсутствия лицензии Unity.
+
+## Яндекс Реклама
+
+Сценарий приёмки — `YANDEX_ADS.md`. Модельный набор: 104 прошедших теста. `AdExposureRulesTests` проверяет первую партию, интервал от фактического показа, сохранённое состояние и перевод часов назад. `EditorAdFallbackDoesNotBlockNavigationAndUsesTestSettings` проверяет тестовую конфигурацию и переход после Game Over без нативной рекламы; требует запуска в Unity. Настройки счётчиков рекламы сохраняются/восстанавливаются `PreferenceTestScope` вместе с остальными PlayerPrefs пользователя.
