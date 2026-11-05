@@ -38,7 +38,7 @@ Application Id сохранён для справки: загрузка объя
 ## Проверка
 
 1. Обновить проект целиком и дождаться Package Manager/компиляции. В Package Manager должна появиться версия Yandex Mobile Ads 8.6.0, EDM4U и ad-revenue adapter. При ошибке разрешения пакетов сначала исправить её; не удалять зависимости SDK из asmdef.
-2. Выбрать Android / Switch Platform. Выполнить **Assets → External Dependency Manager → Android Resolver → Force Resolve**. Resolver должен подключить Android-зависимости; Gradle-шаблоны, ранее отключённые в проекте, вслепую не возвращать.
+2. Выбрать Android / Switch Platform. Выполнить **Assets → External Dependency Manager → Android Resolver → Force Resolve**. Resolver должен подключить Android-зависимости; В проекте включены Custom Main Gradle Template, Custom Gradle Properties Template и Custom Gradle Settings Template; resolver должен дописать зависимости в mainTemplate.gradle, а не скачивать их отдельным Gradle 5.1.1. Launcher/Base Gradle templates остаются стандартными Unity.
 3. Собрать Development APK через **Tools → Block Blast → Build Android Development APK**. В Unity Editor реальные объявления не показываются: Android-адаптер намеренно выключен, переходы работают без рекламы.
 4. На телефоне проверить тестовый баннер в меню, его отсутствие в настройках и игре; проверить portrait/landscape и Pixel safe area, отсутствие перекрытия «Играть»/«Новая игра».
 5. Завершить первую обычную партию: реклама не появляется. После второй — нажать «Ещё раз»/«В меню», закрыть объявление, проверить ровно один переход и звук. Повторить раньше 120 секунд: нового полноэкранного показа быть не должно.
@@ -46,3 +46,20 @@ Application Id сохранён для справки: загрузка объя
 7. Пройти повторное обучение, проверить паузу, обычный перезапуск и продолжение сохранённой партии: реклама не должна появляться в этих переходах. Установка обновления APK поверх прежней должна сохранять партию/рекорд.
 
 Проверено в облаке: **104 теста модели** прошли, в том числе ограничения первой партии, интервала, перезапуска и перевода часов назад. Код Android-адаптера компилируется против реальных публичных C# API SDK 8.6.0 (исходники с официальным dummy backend используются только для проверки сигнатур вне Unity); Unity-тесты компилируются. Это не проверка настоящего Android backend: APK, Gradle/EDM4U, JNI, фактические показы, callback-последовательность и раскладка на телефоне здесь не выполнялись.
+
+## Исправление долгой сборки: повторяющиеся Resolution attempt
+
+Полный пользовательский Editor.log показал отдельный Gradle resolver 5.1.1 и 24 последовательных прохода `conflicts detected: true, updated packages: true`; список пакетов расширялся до `+` и предварительных версий AndroidX. В таком состоянии надпись `Building scene 0: MainMenu` не отражает фактическое ожидание разрешения рекламных зависимостей. Это отличается от прежнего сбоя запуска Groovy под неподходящей Java: Java уже запустила Gradle, а он теперь повторяет согласование зависимостей.
+
+Исправление: включены шаблоны Unity 2022.3 — `Assets/Plugins/Android/mainTemplate.gradle`, `gradleTemplate.properties` и `settingsTemplate.gradle`; в `ProjectSettings/GvhProjectSettings.xml` включено их обновление resolver-ом. AndroidX/Jetifier включены в properties. Settings template использует стандартную для Unity 2022.2+ структуру репозиториев; она сверена с fixture официального resolver v1.2.178. Согласно исходникам EDM4U **v1.2.178** (`PlayServicesResolver.ResolveUnsafe`), сочетание `GradleTemplateEnabled && PatchMainTemplateGradle` выбирает `GradleTemplateResolver.InjectDependencies`, минуя `GradleResolverInstance.DoResolution` и его старый загрузчик. Окончательное разрешение выполняет сборочный Gradle Unity. Прямые версии библиотек берутся из XML официального SDK; произвольные force-понижения AndroidX или смена версии SDK не добавлены.
+
+Порядок применения на компьютере:
+
+1. Отменить текущую сборку и закрыть Unity. Если Cancel не завершает операцию, закрыть редактор после сохранения своей работы; новую сборку параллельно не запускать.
+2. Обновить проект из GitHub вместе с **Assets/Plugins/Android**, **ProjectSettings/ProjectSettings.asset** и **ProjectSettings/GvhProjectSettings.xml**. Локальные правки перед синхронизацией сохранить, не сбрасывать вслепую.
+3. Открыть Unity прежней командой PowerShell с встроенным JDK 11. В Player → Android → Publishing Settings должны быть включены **Custom Main Gradle Template**, **Custom Gradle Properties Template** и **Custom Gradle Settings Template**. Остальные Custom Gradle Templates включать не нужно.
+4. В **Assets → External Dependency Manager → Android Resolver → Settings** проверить **Use project settings**, **Patch mainTemplate.gradle**, **Patch gradleTemplate.properties**, **Copy and patch settingsTemplate.gradle** и **Use Jetifier**. Это важно, если на компьютере ранее были выбраны глобальные настройки resolver-а.
+5. Выполнить **Force Resolve** один раз. В этом режиме ожидается обновление шаблонов, без нового цикла `Resolution attempt 1…24`. Force Resolve удаляет прежние библиотеки, помеченные как управляемые resolver-ом; всю папку Plugins вручную удалять не нужно.
+6. Собрать APK. Нативные библиотеки могут скачиваться во время самой сборки. Если возникнет новая ошибка Gradle, изучать её отдельно: переключение режима устраняет обнаруженный старый цикл, но не является проверкой всех последующих Android-задач.
+
+В облаке проверены соответствие ветки официальному коду v1.2.178, синтаксис project settings/XML, наличие плейсхолдеров шаблонов и согласованность трёх включённых флагов. Нативный Android build по-прежнему не выполнен из-за отсутствия лицензии Unity и Android Build Support.
