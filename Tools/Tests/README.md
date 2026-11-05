@@ -280,7 +280,7 @@ leaves before its animation finishes, without awarding its points twice on resum
 GamePreferences retains the existing best-score key and saves sound, volume and
 tutorial completion. Sound/volume apply in both scenes and survive restart. UIAudio
 provides a quiet procedural interface click, including paused menu interaction;
-full gameplay sound effects remain in step 9. Volume drags update live and flush
+gameplay cues and Android haptics are now implemented in GameFeedback (see ANDROID_RELEASE.md). Volume drags update live and flush
 on settings close/background/exit, avoiding a disk save on every slider tick.
 
 TutorialProgress follows actual board-turn completion, selection, planar movement,
@@ -339,3 +339,7 @@ visual layout require device/editor acceptance; compilation alone is not a pass.
 - При наличии сохранённой партии пройти/пропустить повторное обучение из настроек и вернуться в меню: основная партия доступна через «Продолжить».
 
 Автоматические Play Mode-сценарии находятся в `SessionInterfaceTests`, валидация формата и статистики — в `RunSnapshotTests`. Проверки не заменяют пользовательское сохранение: `PreferenceTestScope` восстанавливает его после выхода из Play Mode.
+
+## Полировка и Android Development Build
+
+Актуальная инструкция сборки и финальная проверка звука, вибрации, pooling, сохранений и FPS — в `ANDROID_RELEASE.md`. Модельный набор содержит 100 прошедших тестов. Добавленный Play Mode-сценарий `ClearedBlocksAndGhostsAreReusedWithoutStalePlacementOrMaterial` проверяет повторное использование объектов, исходный материал после рентгена, обновление валидности после изменения модели, переключатель вибрации и содержимое звукового банка. Он компилируется, но в облаке не выполнен из-за отсутствия лицензии Unity.

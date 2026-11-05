@@ -89,3 +89,21 @@ public class RunSnapshotTests
         Assert.AreEqual(13,stats.Moves); Assert.AreEqual(3,stats.Lines); Assert.AreEqual(100,stats.PeakOccupied);
     }
 }
+
+public class BoardRevisionTests
+{
+    [Test] public void EveryOccupancyMutationInvalidatesPreviewCaches()
+    {
+        var board=new BoardModel(); int revision=board.Revision;
+        board.SetOccupied(0,0,0,true); Assert.Greater(board.Revision,revision); revision=board.Revision;
+        board.SetOccupied(0,0,0,true); Assert.AreEqual(revision,board.Revision);
+        board.SetOccupied(-1,0,0,true); Assert.AreEqual(revision,board.Revision);
+        board.ClearCell(0,0,0); Assert.Greater(board.Revision,revision); revision=board.Revision;
+        Assert.IsTrue(board.TryPlaceShape(BoardModel.Cell.zero,new[] { BoardModel.Cell.zero }));
+        Assert.Greater(board.Revision,revision); revision=board.Revision;
+        board.ClearPlane(new BoardModel.Plane(BoardModel.PlaneAxis.XY,0)); Assert.Greater(board.Revision,revision);
+        for (int x=0;x<8;x++) board.SetOccupied(x,0,0,true);
+        revision=board.Revision; board.ClearLines(board.GetCompletedLines()); Assert.Greater(board.Revision,revision);
+        Assert.AreEqual(512,board.CountFreeCells());
+    }
+}

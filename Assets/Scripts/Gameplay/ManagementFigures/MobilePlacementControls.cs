@@ -32,6 +32,9 @@ public class MobilePlacementControls : MonoBehaviour
     private readonly ShapeInstanceData[] drawnOffers = new ShapeInstanceData[3];
     private readonly int[] drawnRotations = { -1,-1,-1 };
     private readonly bool[] offerFits = new bool[3];
+    private readonly string[] cardDescriptions=new string[3];
+    private int drawnScore=-1,drawnBest=-1,drawnDepth=-1,drawnRemaining=-1,drawnStage=-1;
+    private bool drewGameOver;
     private readonly Button[] layers = new Button[8];
     private Button rotateHorizontal, rotateVertical, cancel, place;
     private Text finalStatistics,brandText;
@@ -173,7 +176,7 @@ public class MobilePlacementControls : MonoBehaviour
             layers[i].GetComponent<Image>().color = figure.HasActiveFigure && figure.Depth == i ? Accent : SoftButton;
             layers[i].GetComponentInChildren<Text>().color = figure.HasActiveFigure && figure.Depth == i ? Color.white : Muted;
         }
-        depthText.text = (figure.Depth+1)+" / 8";
+        if (drawnDepth!=figure.Depth) { drawnDepth=figure.Depth; depthText.text=(drawnDepth+1)+" / 8"; }
         modeText.text = game.IsGameOver ? "Спасибо за игру!" : placer.IsResolving ? "Отличный ход!" :
             !figure.HasActiveFigure ? "Выберите фигуру" : figure.CanPlaceAtCurrent() ? "Отличное место!" : "Попробуем другое место";
         modeText.color = figure.HasActiveFigure && !figure.CanPlaceAtCurrent() ? new Color(0.78f,0.26f,0.20f) : Accent;
@@ -196,15 +199,21 @@ public class MobilePlacementControls : MonoBehaviour
         { modeText.text="Комбо ×"+game.LastClearedLines; hint.text="Несколько линий за один ход!"; }
         RefreshOffers();
         displayedScore = Mathf.MoveTowards(displayedScore,game.Score,Mathf.Max(30,Mathf.Abs(game.Score-displayedScore)*8)*Time.deltaTime);
-        scoreText.text = Mathf.RoundToInt(displayedScore).ToString();
-        recordText.text = Mathf.Max(game.BestScore,game.Score).ToString();
+        int score=Mathf.RoundToInt(displayedScore),best=Mathf.Max(game.BestScore,game.Score);
+        if (drawnScore!=score) { drawnScore=score; scoreText.text=score.ToString(); }
+        if (drawnBest!=best) { drawnBest=best; recordText.text=best.ToString(); }
         if (game.Score > lastScore)
         { gainText.text = "+"+(game.Score-lastScore); lastScore = game.Score; gainTime = 1; }
         gainTime = Mathf.Max(0,gainTime-Time.deltaTime);
         gainText.color = new Color(Accent.r,Accent.g,Accent.b,gainTime);
+        float pop=Mathf.Sin(Mathf.Clamp01((1-gainTime)*3)*Mathf.PI);
+        gainText.rectTransform.localScale=Vector3.one*(1+pop*(game.LastClearedLines>=2 ? .22f : .10f));
+        modeText.rectTransform.localScale=Vector3.one*(!game.IsGameOver && game.LastClearedLines>=2 && Time.unscaledTime-game.LastMoveAt<2
+            ? 1+.12f*pop : 1);
         gameOver.SetActive(game.IsGameOver);
-        if (game.IsGameOver)
+        if (game.IsGameOver && !drewGameOver)
         {
+            drewGameOver=true;
             finalScore.text=game.Score.ToString();
             finalStatistics.text=$"Ходы: {game.Statistics.Moves}\nОчищено линий: {game.Statistics.Lines}\nМакс. заполненность: {game.Statistics.PeakPercent:0}%";
         }
@@ -221,12 +230,16 @@ public class MobilePlacementControls : MonoBehaviour
             bool selected = offer != null && figure.ActiveOffer == offer;
             int rotation = offer != null ? offer.offer.Orientation : -1;
             bool redraw = offer != drawnOffers[i] || rotation != drawnRotations[i] || game.Score != lastScore;
-            if (redraw) offerFits[i] = offer != null && selector.CanPlaceShapeAnywhere(i);
+            if (redraw)
+            {
+                offerFits[i]=offer!=null && selector.CanPlaceShapeAnywhere(i);
+                cardDescriptions[i]=offer!=null ? offer.baseCells.Length+" блок." : "";
+            }
             cards[i].interactable = offer != null && offerFits[i] && game.CanSelectShape;
             cardBorders[i].effectColor = selected ? Accent : Color.clear;
             cardBackgrounds[i].color = offer == null ? new Color(0.75f,0.81f,0.77f) :
                 Color.Lerp(new Color(0.84f,0.89f,0.85f),offer.color,selected ? 0.25f : 0.10f);
-            cardLabels[i].text = offer == null ? "Готово" : selected ? "Выбрано" : !offerFits[i] ? "Нет места" : offer.baseCells.Length+" блок.";
+            cardLabels[i].text = offer == null ? "Готово" : selected ? "Выбрано" : !offerFits[i] ? "Нет места" : cardDescriptions[i];
             cardLabels[i].color = selected ? Accent : Muted;
             if (redraw)
             {
@@ -234,8 +247,13 @@ public class MobilePlacementControls : MonoBehaviour
                 thumbnails[i].SetShape(offer?.offer.Cells,offer == null ? Color.clear : offerFits[i] ? offer.color : new Color(Muted.r,Muted.g,Muted.b,0.4f));
             }
         }
-        setText.text = remaining+" / 3 · "+BalanceRules.StageName(selector.PlacedShapes);
+        int stage=BalanceRules.Stage(selector.PlacedShapes);
+        if (drawnRemaining!=remaining || drawnStage!=stage)
+        { drawnRemaining=remaining; drawnStage=stage; setText.text=remaining+" / 3 · "+BalanceRules.StageName(selector.PlacedShapes); }
     }
+
+    public void SyncRestoredScore()
+    { displayedScore=game.Score; lastScore=game.Score; gainTime=0; }
 
     private void ConfigureView()
     {

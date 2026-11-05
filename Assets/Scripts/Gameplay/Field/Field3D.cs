@@ -32,6 +32,44 @@ public class Field3D : MonoBehaviour
     // Каждая клетка хранит либо null (пусто), либо ссылку на трансформ блока.
     private Transform[,,] cells = new Transform[Size, Size, Size];
 
+    private readonly Dictionary<int,Stack<GameObject>> pools=new Dictionary<int,Stack<GameObject>>();
+    private readonly Dictionary<GameObject,int> poolKeys=new Dictionary<GameObject,int>();
+    private Transform poolRoot;
+    private MaterialPropertyBlock colorProperties;
+    public int Revision => board.Revision;
+    public int PooledBlockCount
+    { get { int count=0; foreach (var pool in pools.Values) count+=pool.Count; return count; } }
+    private GameObject RentBlock(GameObject prefab,Transform parent)
+    {
+        int key=prefab!=null ? prefab.GetInstanceID() : 0;
+        if (!pools.TryGetValue(key,out var pool)) pools[key]=pool=new Stack<GameObject>();
+        GameObject block=null;
+        while (pool.Count>0 && block==null) block=pool.Pop();
+        if (block==null)
+        {
+            block=prefab!=null ? Instantiate(prefab) : GameObject.CreatePrimitive(PrimitiveType.Cube);
+            foreach (var collider in block.GetComponentsInChildren<Collider>(true))
+            { collider.enabled=false; Destroy(collider); }
+            poolKeys[block]=key;
+        }
+        block.transform.SetParent(parent!=null ? parent : transform,false);
+        block.SetActive(true); return block;
+    }
+    private void ReturnBlock(Transform block)
+    {
+        if (block==null) return;
+        if (!poolKeys.TryGetValue(block.gameObject,out int key)) { Destroy(block.gameObject); return; }
+        if (poolRoot==null)
+        {
+            poolRoot=new GameObject("PooledBlocks").transform; poolRoot.SetParent(transform,false);
+            poolRoot.gameObject.SetActive(false);
+        }
+        // ClearCell has already restored any translucent material through OnCellChanged.
+        foreach (var renderer in block.GetComponentsInChildren<Renderer>(true)) renderer.SetPropertyBlock(null);
+        block.gameObject.SetActive(false); block.SetParent(poolRoot,false);
+        pools[key].Push(block.gameObject);
+    }
+
     private readonly Color[,,] colors=new Color[Size,Size,Size];
     public Color CellColor(int x,int y,int z) => colors[x,y,z];
 
@@ -115,28 +153,14 @@ public class Field3D : MonoBehaviour
             int y = anchorPos.y + shapeCells[i].y;
             int z = anchorPos.z + shapeCells[i].z;
 
-            GameObject block;
-            if (blockPrefab != null)
-            {
-                block = Instantiate(blockPrefab, blocksParent);
-                block.name = $"Block_{x}_{y}_{z}";
-            }
-            else
-            {
-                block = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                block.name = $"Block_{x}_{y}_{z}";
-                if (blocksParent != null) block.transform.SetParent(blocksParent, false);
-            }
+            GameObject block=RentBlock(blockPrefab,blocksParent);
+            block.name=$"Block_{x}_{y}_{z}";
 
             Vector3 local = GridToLocal(new Vector3Int(x, y, z));
 
             block.transform.localPosition = local;
             block.transform.localRotation = Quaternion.identity;
             block.transform.localScale = Vector3.one * cellSize * 0.95f;
-
-            // Уберём коллайдер — для блоков на поле он не нужен
-            var col = block.GetComponent<Collider>();
-            if (col != null) Destroy(col);
 
             // Применим цвет/материал, если задан
             if (color.a > 0f)
@@ -145,11 +169,11 @@ public class Field3D : MonoBehaviour
                 if (r != null)
                 {
                     if (sharedMat!=null) r.sharedMaterial=sharedMat;
-                    var properties=new MaterialPropertyBlock();
-                    r.GetPropertyBlock(properties);
-                    properties.SetColor("_Color",color);
-                    properties.SetColor("_BaseColor",color);
-                    r.SetPropertyBlock(properties);
+                    if (colorProperties==null) colorProperties=new MaterialPropertyBlock();
+                    colorProperties.Clear();
+                    colorProperties.SetColor("_Color",color);
+                    colorProperties.SetColor("_BaseColor",color);
+                    r.SetPropertyBlock(colorProperties);
                 }
             }
 
@@ -182,7 +206,7 @@ public class Field3D : MonoBehaviour
 
             var t = cells[x, y, z];
             ClearCell(x,y,z);
-            if (t != null) Destroy(t.gameObject);
+            ReturnBlock(t);
         }
     }
 
@@ -238,7 +262,7 @@ public class Field3D : MonoBehaviour
         {
             var block = GetCell(c.x, c.y, c.z);
             ClearCell(c.x, c.y, c.z);
-            if (block != null) Destroy(block.gameObject);
+            ReturnBlock(block);
         }
     }
 

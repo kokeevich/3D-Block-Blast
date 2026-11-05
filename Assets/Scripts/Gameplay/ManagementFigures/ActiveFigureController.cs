@@ -20,6 +20,15 @@ public class ActiveFigureController : MonoBehaviour
     private Transform ghost;
     private Material ghostMaterial;
     private readonly List<Transform> ghostCells = new List<Transform>();
+    private readonly List<Renderer> ghostRenderers=new List<Renderer>();
+    private ShapeOffer cachedOffer;
+    private BoardModel.Cell[] modelCells;
+    private Vector3Int[] visualCells;
+    private int checkedRevision=-1;
+    private Vector3Int checkedAnchor,drawnAnchor;
+    private bool cachedValid,drawn;
+    private ShapeOffer drawnOffer;
+    private Color drawnColor;
     private MaterialPropertyBlock colorBlock;
     public PlacementFrame Frame { get; private set; }
     public Vector3Int CurrentGridPosition => currentGridPosition;
@@ -62,30 +71,52 @@ public class ActiveFigureController : MonoBehaviour
         currentGridPosition=ToVector(Frame.StartAnchor(data.offer.Cells));
         // Keep the source object for shape/color data; render exact target cells instead.
         foreach (var renderer in figure.GetComponentsInChildren<Renderer>(true)) renderer.enabled = false;
-        ghost = new GameObject("PlacementGhost").transform;
-        ghost.SetParent(fieldTransform, false);
-        Shader shader = Resources.Load<Shader>("PlacementGhost");
-        if (shader == null) shader = Shader.Find("Unlit/Color");
-        if (shader == null) shader = Shader.Find("Sprites/Default");
-        ghostMaterial = new Material(shader) { name = "Placement Ghost" };
-        foreach (var cell in data.offer.Cells)
+        if (ghost==null)
+        {
+            ghost = new GameObject("PlacementGhost").transform;
+            Shader shader = Resources.Load<Shader>("PlacementGhost");
+            if (shader == null) shader = Shader.Find("Unlit/Color");
+            if (shader == null) shader = Shader.Find("Sprites/Default");
+            ghostMaterial = new Material(shader) { name = "Placement Ghost" };
+        }
+        ghost.SetParent(fieldTransform,false); ghost.gameObject.SetActive(true);
+        EnsureGeometry();
+        while (ghostCells.Count<visualCells.Length)
         {
             var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            cube.transform.SetParent(ghost, false);
-            Destroy(cube.GetComponent<Collider>());
-            cube.GetComponent<Renderer>().sharedMaterial = ghostMaterial;
-            ghostCells.Add(cube.transform);
+            cube.transform.SetParent(ghost,false);
+            var collider=cube.GetComponent<Collider>(); collider.enabled=false; Destroy(collider);
+            var renderer=cube.GetComponent<Renderer>(); renderer.sharedMaterial=ghostMaterial;
+            ghostCells.Add(cube.transform); ghostRenderers.Add(renderer);
         }
+        for (int i=0;i<ghostCells.Count;i++) ghostCells[i].gameObject.SetActive(i<visualCells.Length);
+        drawn=false;
         RefreshGhost();
     }
 
     private static PlacementFrame.Direction Direction(Vector3 v) => new PlacementFrame.Direction(v.x, v.y, v.z);
     private static BoardModel.Cell ToCell(Vector3Int c) => new BoardModel.Cell(c.x, c.y, c.z);
     private static Vector3Int ToVector(BoardModel.Cell c) => new Vector3Int(c.x, c.y, c.z);
-    public Vector3Int[] GetRotatedCells() => data == null ? null : Array.ConvertAll(data.offer.Cells, ToVector);
+    private void EnsureGeometry()
+    {
+        if (data==null || cachedOffer==data.offer) return;
+        cachedOffer=data.offer; modelCells=cachedOffer.Cells;
+        visualCells=Array.ConvertAll(modelCells,ToVector); checkedRevision=-1;
+    }
+    public Vector3Int[] GetRotatedCells()
+    { if (data==null) return null; EnsureGeometry(); return (Vector3Int[])visualCells.Clone(); }
 
-    public bool CanPlaceAtCurrent() => HasActiveFigure && field != null &&
-        field.CanPlaceShape(currentGridPosition, GetRotatedCells());
+    public bool CanPlaceAtCurrent()
+    {
+        if (!HasActiveFigure || field==null) return false;
+        EnsureGeometry();
+        if (checkedRevision!=field.Revision || checkedAnchor!=currentGridPosition)
+        {
+            cachedValid=field.Model.CanPlaceShape(ToCell(currentGridPosition),modelCells);
+            checkedRevision=field.Revision; checkedAnchor=currentGridPosition;
+        }
+        return cachedValid;
+    }
 
     public void RestoreGridPosition(Vector3Int position)
     { currentGridPosition=position; RefreshGhost(); }
@@ -133,25 +164,27 @@ public class ActiveFigureController : MonoBehaviour
     private void RefreshGhost()
     {
         if (ghost == null || data == null) return;
-        var cells = GetRotatedCells();
+        EnsureGeometry();
+        var cells = visualCells;
         bool valid = CanPlaceAtCurrent();
         Color color = valid ? validColor : invalidColor;
         color.a = valid ? 0.55f : 0.65f;
+        if (drawn && drawnOffer==cachedOffer && drawnAnchor==currentGridPosition && drawnColor==color) return;
+        drawn=true; drawnOffer=cachedOffer; drawnAnchor=currentGridPosition; drawnColor=color;
         colorBlock.SetColor("_Color", color);
         colorBlock.SetColor("_BaseColor", color);
         for (int i = 0; i < cells.Length; i++)
         {
             ghostCells[i].localPosition = field.GridToLocal(currentGridPosition + cells[i]);
             ghostCells[i].localScale = Vector3.one * field.CellSize * 0.92f;
-            ghostCells[i].GetComponent<Renderer>().SetPropertyBlock(colorBlock);
+            ghostRenderers[i].SetPropertyBlock(colorBlock);
         }
     }
 
     private void ReleaseGhost()
     {
-        if (ghost != null) { ghost.gameObject.SetActive(false); Destroy(ghost.gameObject); }
-        if (ghostMaterial != null) Destroy(ghostMaterial);
-        ghost = null; ghostMaterial = null; ghostCells.Clear(); Frame = null;
+        if (ghost != null) ghost.gameObject.SetActive(false);
+        Frame=null; cachedOffer=null; drawn=false; checkedRevision=-1;
     }
     public void ClearActiveFigure()
     {
@@ -165,5 +198,10 @@ public class ActiveFigureController : MonoBehaviour
         currentGridPosition = Vector3Int.zero;
     }
     public void SnapToNearestCell() { RefreshGhost(); }
-    private void OnDestroy() { ClearActiveFigure(); }
+    private void OnDestroy()
+    {
+        ClearActiveFigure();
+        if (ghost!=null) Destroy(ghost.gameObject);
+        if (ghostMaterial!=null) Destroy(ghostMaterial);
+    }
 }

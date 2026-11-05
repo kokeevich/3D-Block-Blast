@@ -6,7 +6,7 @@ using UnityEngine;
 // scene's OnDestroy saves, so tests never replace the player's real preferences.
 public static class PreferenceTestScope
 {
-    private static readonly string[] IntKeys={ "blockblast.rotation.free","blockblast.sound","blockblast.tutorial.completed","blockblast.best" };
+    private static readonly string[] IntKeys={ "blockblast.haptics","blockblast.rotation.free","blockblast.sound","blockblast.tutorial.completed","blockblast.best" };
     public static void Save(string scope)
     {
         SessionState.SetBool(scope+"run.present",PlayerPrefs.HasKey("blockblast.run.v1"));

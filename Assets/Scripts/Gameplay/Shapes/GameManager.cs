@@ -32,6 +32,7 @@ public class GameManager : MonoBehaviour
     void Start()
     {
         initialized=true;
+        GameFeedback.Prepare();
         Time.timeScale=1; AudioListener.pause=false; GamePreferences.ApplyAudio();
         bestScore=GamePreferences.BestScore;
         practice=GameLaunch.ConsumeTutorialRequest();
@@ -113,6 +114,7 @@ public class GameManager : MonoBehaviour
         session.EndGame();
         if (!practice) RunSaveStore.Clear();
         ReleasePause(); PersistProgress();
+        if (!restoring) GameFeedback.Play(GameFeedback.Cue.GameOver);
     }
 
     public bool TrySelectOffer(int index)
@@ -261,6 +263,7 @@ public class GameManager : MonoBehaviour
                 activeFigureController.RestoreGridPosition(new Vector3Int(snapshot.anchorX,snapshot.anchorY,snapshot.anchorZ));
         }
         finally { restoring=false; }
+        GetComponent<MobilePlacementControls>()?.SyncRestoredScore();
         SaveSession(); return true;
     }
 

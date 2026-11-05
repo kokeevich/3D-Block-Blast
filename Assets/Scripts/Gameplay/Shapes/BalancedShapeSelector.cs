@@ -149,7 +149,7 @@ public class BalancedShapeSelector : MonoBehaviour
         // Assign geometry before Awake so the runtime mesh, ghost, rules and
         // card all derive from the very same cell array.
         var shape=instance.AddComponent<FigureGridShape>();
-        shape.cells=Array.ConvertAll(data.baseCells,c => new Vector3Int(c.x,c.y,c.z));
+        shape.ConfigurePreview(Array.ConvertAll(data.baseCells,c => new Vector3Int(c.x,c.y,c.z)));
         return instance;
     }
 

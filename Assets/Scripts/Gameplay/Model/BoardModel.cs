@@ -23,6 +23,7 @@ public class BoardModel
     }
 
     // Occupancy is independent of scene objects and their lifetime.
+    public int Revision { get; private set; }
     private readonly bool[,,] cells = new bool[Size, Size, Size];
 
     public bool IsInside(int x, int y, int z)
@@ -44,13 +45,13 @@ public class BoardModel
 
     public void SetOccupied(int x, int y, int z, bool occupied)
     {
-        if (IsInside(x, y, z)) cells[x, y, z] = occupied;
+        if (IsInside(x,y,z) && cells[x,y,z]!=occupied)
+        { cells[x,y,z]=occupied; Revision++; }
     }
 
     public void ClearCell(int x, int y, int z)
     {
-        if (IsInside(x, y, z))
-            cells[x, y, z] = false;
+        SetOccupied(x,y,z,false);
     }
 
     public int CountFreeCells()
@@ -89,7 +90,7 @@ public class BoardModel
     public bool TryPlaceShape(Cell anchor, Cell[] shape)
     {
         if (!CanPlaceShape(anchor, shape)) return false;
-        foreach (var c in shape) cells[anchor.x + c.x, anchor.y + c.y, anchor.z + c.z] = true;
+        foreach (var c in shape) SetOccupied(anchor.x+c.x,anchor.y+c.y,anchor.z+c.z,true);
         return true;
     }
 
@@ -123,7 +124,7 @@ public class BoardModel
                 case PlaneAxis.YZ: x = plane.index; y = a; z = b; break;
             }
 
-            cells[x, y, z] = false;
+            SetOccupied(x,y,z,false);
         }
     }
 

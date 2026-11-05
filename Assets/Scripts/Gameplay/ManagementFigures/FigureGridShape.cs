@@ -18,6 +18,8 @@ public class FigureGridShape : MonoBehaviour
     public Vector3 pivotOffset;
 
     private bool runtimeInitialized;
+    public void ConfigurePreview(Vector3Int[] logicalCells)
+    { cells=logicalCells; rebuildVisualsFromCells=false; }
 
 #if UNITY_EDITOR
     [ContextMenu("Auto Generate Cells From Children")]

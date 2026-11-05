@@ -2,6 +2,10 @@ using UnityEngine;
 
 public static class GamePreferences
 {
+    public const string HapticsKey="blockblast.haptics";
+    public static bool HapticsEnabled => PlayerPrefs.GetInt(HapticsKey,1)!=0;
+    public static void SetHaptics(bool enabled)
+    { PlayerPrefs.SetInt(HapticsKey,enabled ? 1 : 0); Save(); }
     public const string FreeRotationKey="blockblast.rotation.free";
     public static bool FreeRotation => PlayerPrefs.GetInt(FreeRotationKey,0)!=0;
     public static void SetFreeRotation(bool enabled)

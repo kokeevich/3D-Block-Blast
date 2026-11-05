@@ -56,7 +56,7 @@ public class ShapePlacer : MonoBehaviour
         if (busyClearing || (game!=null && !game.CanPlace)) return;
         if (figureController == null || field == null) return;
         if (!figureController.HasActiveFigure) return;
-        if (!figureController.CanPlaceAtCurrent()) return;
+        if (!figureController.CanPlaceAtCurrent()) { GameFeedback.Play(GameFeedback.Cue.Invalid); return; }
 
         var shape = figureController.ActiveShape;
         var figureGo = figureController.ActiveFigure;
@@ -95,6 +95,7 @@ public class ShapePlacer : MonoBehaviour
         var result = field.GetCompletedLines();
         pending=result; pendingCells=blocks.Count;
         busyClearing = true;
+        GameFeedback.Play(GameFeedback.Cue.Place);
         if (game!=null) game.SaveSession();
         StartCoroutine(ResolveLinesAndNotify(result, blocks));
     }
@@ -107,6 +108,7 @@ public class ShapePlacer : MonoBehaviour
             yield return StartCoroutine(AnimateSpawn(blocks));
             if (result.Cells.Count > 0)
             {
+                GameFeedback.Play(result.LinesCleared>=2 || result.PlanesCompleted>0 ? GameFeedback.Cue.Combo : GameFeedback.Cue.Clear);
                 if (planeClearer != null)
                 {
                     planeClearer.SetField(field);

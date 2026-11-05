@@ -29,6 +29,57 @@ public class SessionInterfaceTests
     private static RunSnapshot SavedRun() => (RunSnapshot)R("RunSaveStore").GetMethod("Load").Invoke(null,null);
 
     [UnityTest]
+    public IEnumerator ClearedBlocksAndGhostsAreReusedWithoutStalePlacementOrMaterial()
+    {
+        yield return new EnterPlayMode(); PlayerPrefs.SetInt("blockblast.tutorial.completed",1);
+        yield return Load("Game");
+        var field=(Component)Find("Field3D"); var placer=Find("ShapePlacer"); var game=Find("GameManager");
+        var objects=new HashSet<int>();
+        for (int x=0;x<8;x++)
+        {
+            Call(placer,"RestoreBlock",new RunSnapshot.Block { x=x,rgba=unchecked((int)0x123456ff) });
+            objects.Add(((Transform)Call(field,"GetCell",x,0,0)).gameObject.GetInstanceID());
+        }
+        var block=(Transform)Call(field,"GetCell",0,0,0); Material original=block.GetComponent<Renderer>().sharedMaterial;
+        Call(Find("BoardVisibility"),"SetXRay",true); yield return null;
+        Call(field,"ClearLines",Call(field,"GetCompletedLines"));
+        Assert.AreEqual(8,Get<int>(field,"PooledBlockCount"));
+        Call(Find("BoardVisibility"),"SetXRay",false);
+        Call(placer,"RestoreBlock",new RunSnapshot.Block { x=7,y=7,z=7,rgba=unchecked((int)0xabcdefFF) });
+        var reused=(Transform)Call(field,"GetCell",7,7,7);
+        Assert.IsTrue(objects.Contains(reused.gameObject.GetInstanceID()));
+        Assert.AreSame(original,reused.GetComponent<Renderer>().sharedMaterial);
+        Assert.AreEqual(7,Get<int>(field,"PooledBlockCount")); Assert.IsTrue(reused.gameObject.activeInHierarchy);
+        Assert.IsTrue((bool)Call(game,"TrySelectOffer",0)); yield return null;
+        var actor=Find("ActiveFigureController"); var ghost=GameObject.Find("PlacementGhost");
+        int id=ghost.GetInstanceID(),material=ghost.GetComponentInChildren<Renderer>().sharedMaterial.GetInstanceID();
+        Assert.AreEqual(0,((GameObject)actor.GetType().GetProperty("ActiveFigure").GetValue(actor)).GetComponentsInChildren<Renderer>().Length);
+        Call(game,"CancelSelection"); Assert.IsTrue((bool)Call(game,"TrySelectOffer",1)); yield return null;
+        Assert.AreEqual(id,GameObject.Find("PlacementGhost").GetInstanceID());
+        Assert.AreEqual(material,GameObject.Find("PlacementGhost").GetComponentInChildren<Renderer>().sharedMaterial.GetInstanceID());
+        var board=Get<BoardModel>(field,"Model");
+        var cells=(Vector3Int[])Call(actor,"GetRotatedCells");
+        var anchor=Get<Vector3Int>(actor,"CurrentGridPosition");
+        Assert.IsTrue((bool)Call(actor,"CanPlaceAtCurrent"));
+        Vector3Int occupied=anchor+cells[0]; board.SetOccupied(occupied.x,occupied.y,occupied.z,true);
+        Assert.IsFalse((bool)Call(actor,"CanPlaceAtCurrent"));
+        board.ClearCell(occupied.x,occupied.y,occupied.z); Assert.IsTrue((bool)Call(actor,"CanPlaceAtCurrent"));
+        Click("PauseGame"); yield return null; Click("PauseSettings"); yield return null;
+        int previous=PlayerPrefs.GetInt("blockblast.haptics",1); Click("HapticsToggle");
+        Assert.AreEqual(previous==0 ? 1 : 0,PlayerPrefs.GetInt("blockblast.haptics"));
+        var feedback=(Component)Find("GameFeedback");
+        Assert.IsFalse(feedback.GetComponent<AudioSource>().ignoreListenerPause);
+        var clips=(AudioClip[])feedback.GetType().GetField("clips",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(feedback);
+        Assert.AreEqual(5,clips.Length);
+        foreach (var clip in clips)
+        {
+            Assert.Less(clip.length,.5f); var samples=new float[clip.samples]; Assert.IsTrue(clip.GetData(samples,0));
+            Assert.Greater(samples.Max(v => Mathf.Abs(v)),.05f);
+        }
+        yield return new ExitPlayMode();
+    }
+
+    [UnityTest]
     public IEnumerator ConfirmedLineClearSurvivesSceneExitDuringAnimationExactlyOnce()
     {
         yield return new EnterPlayMode(); PlayerPrefs.SetInt("blockblast.tutorial.completed",1);
