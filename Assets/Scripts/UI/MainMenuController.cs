@@ -6,9 +6,9 @@ public class MainMenuController : MonoBehaviour
 {
     private ScreenWidgets ui;
     private SettingsView settings;
-    private RectTransform title,kicker,hero,record,subtitle,playRect,tutorialRect,settingsRect,footer;
+    private RectTransform title,kicker,hero,record,subtitle,playRect,settingsRect,bannerSpace;
     private Text titleText,recordText;
-    private Button play,tutorial,options;
+    private Button play,options;
     private bool loading;
     private int width,height;
     private void Start()
@@ -26,10 +26,13 @@ public class MainMenuController : MonoBehaviour
         recordText=ui.Label("BestScore",record,GamePreferences.BestScore.ToString(),Vector2.zero,new Vector2(1,.65f),48,GameTheme.Accent,true);
         subtitle=ui.Label("Subtitle",ui.Root,"Собирайте линии.\nОсвобождайте объём.",new Vector2(.08f,.30f),new Vector2(.92f,.37f),36,GameTheme.Muted).rectTransform;
         play=ui.Button("PlayGame",ui.Root,"Играть",new Vector2(.08f,.18f),new Vector2(.92f,.27f),PlayGame,true); playRect=play.GetComponent<RectTransform>();
-        tutorial=ui.Button("LearnGame",ui.Root,"Как играть",new Vector2(.08f,.08f),new Vector2(.49f,.15f),PlayTutorial); tutorialRect=tutorial.GetComponent<RectTransform>();
-        options=ui.Button("MenuSettings",ui.Root,"Настройки",new Vector2(.51f,.08f),new Vector2(.92f,.15f),() => settings.Show()); settingsRect=options.GetComponent<RectTransform>();
-        footer=ui.Label("Footer",ui.Root,"8 × 8 × 8  ·  Три направления",new Vector2(.08f,.02f),new Vector2(.92f,.06f),24,GameTheme.Muted).rectTransform;
-        settings=new SettingsView(ui,() => { }); Layout();
+        options=ui.Button("MenuSettings",ui.Root,"",Vector2.one,Vector2.one,() => settings.Show());
+        settingsRect=options.GetComponent<RectTransform>();
+        var gear=ScreenWidgets.RectTransform("Gear",settingsRect,new Vector2(.22f,.22f),new Vector2(.78f,.78f));
+        gear.gameObject.AddComponent<SettingsGearGraphic>().color=GameTheme.Ink;
+        // Deliberately empty: reserved for the future bottom banner, not a fake ad.
+        bannerSpace=ScreenWidgets.RectTransform("BannerSpace",ui.Root,Vector2.zero,new Vector2(1,.11f));
+        settings=new SettingsView(ui,() => { },PlayTutorial); Layout();
     }
     public void PlayGame() { Launch(false); }
     public void PlayTutorial() { Launch(true); }
@@ -38,7 +41,7 @@ public class MainMenuController : MonoBehaviour
     {
         if (loading) return;
         loading=true; GamePreferences.Save(); GameLaunch.RequestTutorial(learn);
-        play.interactable=tutorial.interactable=options.interactable=false;
+        play.interactable=options.interactable=false;
         play.GetComponentInChildren<Text>().text="Загрузка…";
         SceneManager.LoadSceneAsync("Game");
     }
@@ -60,19 +63,50 @@ public class MainMenuController : MonoBehaviour
         titleText.fontSize=Mathf.Clamp(Mathf.FloorToInt(relativeHeight*(wide ? .29f : .15f)/2.35f),48,wide ? 72 : 82);
         if (wide)
         {
-            Place(title,.05f,.62f,.48f,.91f); Place(kicker,.05f,.92f,.48f,.98f); Place(hero,.09f,.08f,.45f,.59f);
-            Place(record,.58f,.74f,.94f,.92f); Place(subtitle,.55f,.56f,.96f,.72f); Place(playRect,.56f,.37f,.96f,.52f);
-            Place(tutorialRect,.56f,.19f,.75f,.32f); Place(settingsRect,.77f,.19f,.96f,.32f); Place(footer,.56f,.05f,.96f,.13f);
+            Place(title,.05f,.62f,.48f,.91f); Place(kicker,.05f,.92f,.48f,.98f); Place(hero,.09f,.18f,.45f,.59f);
+            Place(record,.56f,.74f,.84f,.92f); Place(subtitle,.55f,.56f,.96f,.72f); Place(playRect,.56f,.37f,.96f,.52f);
+            Place(bannerSpace,0,0,1,.14f);
         }
         else
         {
-            Place(title,.08f,.79f,.92f,.94f); Place(kicker,.08f,.94f,.92f,.98f); Place(hero,.18f,.48f,.82f,.78f);
+            Place(title,.08f,.79f,.92f,.94f); Place(kicker,.08f,.94f,.80f,.98f); Place(hero,.18f,.48f,.82f,.78f);
             Place(record,.18f,.39f,.82f,.46f); Place(subtitle,.08f,.30f,.92f,.37f); Place(playRect,.08f,.18f,.92f,.27f);
-            Place(tutorialRect,.08f,.08f,.49f,.15f); Place(settingsRect,.51f,.08f,.92f,.15f); Place(footer,.08f,.02f,.92f,.06f);
+            Place(bannerSpace,0,0,1,.11f);
         }
+        // Square touch target anchored inside the safe area, in either orientation.
+        settingsRect.anchorMin=settingsRect.anchorMax=Vector2.one;
+        settingsRect.pivot=Vector2.one;
+        float size=wide ? 96 : 112;
+        settingsRect.sizeDelta=new Vector2(size,size);
+        settingsRect.anchoredPosition=new Vector2(-24,-24);
     }
     private void OnApplicationPause(bool paused) { if (paused) GamePreferences.Save(); }
     private void OnApplicationFocus(bool focused) { if (!focused && !Application.isEditor) GamePreferences.Save(); }
     private void OnApplicationQuit() { GamePreferences.Save(); }
     private void OnDestroy() { if (ui!=null) { GamePreferences.Save(); ui.Dispose(); } }
+}
+
+/// <summary>Vector gear, independent of the device font's Unicode coverage.</summary>
+public sealed class SettingsGearGraphic : MaskableGraphic
+{
+    protected override void OnPopulateMesh(VertexHelper vh)
+    {
+        vh.Clear();
+        Rect rect=GetPixelAdjustedRect();
+        Vector2 center=rect.center;
+        float radius=Mathf.Min(rect.width,rect.height)*.5f;
+        const int segments=64;
+        for (int i=0;i<=segments;i++)
+        {
+            float angle=i*Mathf.PI*2/segments;
+            Vector2 direction=new Vector2(Mathf.Cos(angle),Mathf.Sin(angle));
+            float outer=(i%8>=2 && i%8<=5) ? 1f : .77f;
+            vh.AddVert(center+direction*radius*.36f,color,Vector2.zero);
+            vh.AddVert(center+direction*radius*outer,color,Vector2.zero);
+            if (i==0) continue;
+            int a=(i-1)*2;
+            vh.AddTriangle(a,a+1,a+3); vh.AddTriangle(a,a+3,a+2);
+        }
+    }
+    protected override void Awake() { base.Awake(); raycastTarget=false; }
 }

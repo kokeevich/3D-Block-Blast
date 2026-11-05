@@ -9,7 +9,7 @@ public sealed class SettingsView
     private readonly Slider volume;
     private readonly Text volumeText;
     public bool Visible => Object.activeSelf;
-    public SettingsView(ScreenWidgets ui,System.Action closed)
+    public SettingsView(ScreenWidgets ui,System.Action closed,System.Action learn=null)
     {
         var overlay=ui.Modal("SettingsOverlay",out card); Object=overlay.gameObject;
         ui.Label("Title",card,"Настройки",new Vector2(0.08f,0.83f),new Vector2(0.92f,0.96f),48,GameTheme.Ink,true);
@@ -26,6 +26,16 @@ public sealed class SettingsView
         handle.sizeDelta=new Vector2(80,0); volume.handleRect=handle; volume.targetGraphic=handle.GetComponent<Image>();
         volume.onValueChanged.AddListener(value => GamePreferences.SetVolume(value/100));
         ui.Button("SettingsBack",card,"Назад",new Vector2(0.10f,0.07f),new Vector2(0.90f,0.21f),() => { Hide(); closed(); },true);
+        if (learn!=null)
+        {
+            // Keep replayable help accessible without another main-menu button.
+            var soundRect=sound.GetComponent<RectTransform>();
+            soundRect.anchorMin=new Vector2(.10f,.48f); soundRect.anchorMax=new Vector2(.90f,.58f);
+            rect.anchorMin=new Vector2(.14f,.33f); rect.anchorMax=new Vector2(.86f,.40f);
+            volumeText.rectTransform.anchorMin=new Vector2(.1f,.40f);
+            volumeText.rectTransform.anchorMax=new Vector2(.9f,.45f);
+            ui.Button("LearnGame",card,"Как играть",new Vector2(.10f,.22f),new Vector2(.90f,.31f),() => { Hide(); learn(); });
+        }
         Object.SetActive(false);
     }
     public void Show() { Object.SetActive(true); Object.transform.SetAsLastSibling(); Refresh(); }

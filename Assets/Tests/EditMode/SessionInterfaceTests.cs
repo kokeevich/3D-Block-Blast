@@ -166,7 +166,7 @@ public class SessionInterfaceTests
     public IEnumerator MenuCanReplayCompletedTutorialAndSkipIt()
     {
         yield return new EnterPlayMode(); PlayerPrefs.SetInt("blockblast.tutorial.completed",1);
-        yield return Load("MainMenu"); Click("LearnGame"); yield return WaitForScene("Game"); yield return null;
+        yield return Load("MainMenu"); Click("MenuSettings"); yield return null; Click("LearnGame"); yield return WaitForScene("Game"); yield return null;
         var game=Find("GameManager"); Assert.IsTrue(Get<TutorialProgress>(game,"Tutorial").IsIntro);
         Click("SkipTutorialIntro"); yield return null;
         Assert.IsFalse(Get<TutorialProgress>(game,"Tutorial").Active); Assert.IsFalse(Get<bool>(game,"InputBlocked"));
