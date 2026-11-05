@@ -7,6 +7,8 @@ public sealed class RunStatistics
     public int Lines { get; private set; }
     public int PeakOccupied { get; private set; }
     public double PeakPercent => 100.0*PeakOccupied/(BoardModel.Size*BoardModel.Size*BoardModel.Size);
+    public void Restore(int moves,int lines,int peak)
+    { Moves=moves; Lines=lines; PeakOccupied=peak; }
     public void RecordPlacement(BoardModel.ClearResult clear,int occupiedAfterClear)
     {
         if (clear==null) throw new ArgumentNullException(nameof(clear));

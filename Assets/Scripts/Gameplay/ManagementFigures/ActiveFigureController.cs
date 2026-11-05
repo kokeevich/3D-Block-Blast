@@ -87,6 +87,9 @@ public class ActiveFigureController : MonoBehaviour
     public bool CanPlaceAtCurrent() => HasActiveFigure && field != null &&
         field.CanPlaceShape(currentGridPosition, GetRotatedCells());
 
+    public void RestoreGridPosition(Vector3Int position)
+    { currentGridPosition=position; RefreshGhost(); }
+
     public void SetGridPosition(Vector3Int position)
     {
         if (!HasActiveFigure || InteractionBlocked) return;

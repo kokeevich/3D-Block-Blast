@@ -47,3 +47,45 @@ public class SessionAndTutorialTests
         var flow=new SessionFlow(); flow.EndGame(); Assert.IsTrue(flow.TryBeginTransition()); Assert.IsFalse(flow.CanAcceptInput);
     }
 }
+
+public class RunSnapshotTests
+{
+    private static RunSnapshot Valid() => new RunSnapshot { blocks=new RunSnapshot.Block[0],
+        catalog=new[] { 0,1,2 },orientation=new[] { 0,1,2 },used=new[] { false,false,false },
+        rotation=new[] { 0f,0f,0f,1f },distance=10,ortho=5 };
+    [Test] public void AcceptsInitialAndCommittedPendingCheckpoints()
+    {
+        var s=Valid(); Assert.IsTrue(s.IsValid());
+        s.consume=0; s.moves=1; s.score=3;
+        Assert.IsTrue(s.IsValid()); s.used[0]=true; Assert.IsFalse(s.IsValid());
+    }
+    [Test] public void RejectsUnsupportedVersionAndInvalidGeometry()
+    {
+        var s=Valid(); s.version=2; Assert.IsFalse(s.IsValid());
+        s=Valid(); s.catalog[0]=BalanceRules.Catalog.Count; Assert.IsFalse(s.IsValid());
+        s=Valid(); s.orientation[0]=24; Assert.IsFalse(s.IsValid());
+        s=Valid(); s.used=new[] { true,true,true }; Assert.IsFalse(s.IsValid());
+    }
+    [Test] public void RejectsDuplicateAndOutOfBoundsBlocks()
+    {
+        var s=Valid(); s.peak=2;
+        s.blocks=new[] { new RunSnapshot.Block { x=1 },new RunSnapshot.Block { x=1 } };
+        Assert.IsFalse(s.IsValid()); s.blocks[1].x=8; Assert.IsFalse(s.IsValid());
+        s.blocks[1].x=2; Assert.IsTrue(s.IsValid());
+    }
+    [Test] public void RejectsInvalidStatisticsCameraAndSelection()
+    {
+        var s=Valid(); s.moves=1; Assert.IsFalse(s.IsValid());
+        s=Valid(); s.rotation[0]=float.NaN; Assert.IsFalse(s.IsValid());
+        s=Valid(); s.distance=float.PositiveInfinity; Assert.IsFalse(s.IsValid());
+        s=Valid(); s.selected=1; s.anchorZ=8; Assert.IsFalse(s.IsValid());
+        s.anchorZ=7; Assert.IsTrue(s.IsValid());
+        s.used[1]=true; Assert.IsFalse(s.IsValid());
+    }
+    [Test] public void RestoredStatisticsContinueAccumulating()
+    {
+        var stats=new RunStatistics(); stats.Restore(12,3,100);
+        stats.RecordPlacement(new BoardModel().GetCompletedLines(),5);
+        Assert.AreEqual(13,stats.Moves); Assert.AreEqual(3,stats.Lines); Assert.AreEqual(100,stats.PeakOccupied);
+    }
+}

@@ -9,6 +9,9 @@ public static class PreferenceTestScope
     private static readonly string[] IntKeys={ "blockblast.rotation.free","blockblast.sound","blockblast.tutorial.completed","blockblast.best" };
     public static void Save(string scope)
     {
+        SessionState.SetBool(scope+"run.present",PlayerPrefs.HasKey("blockblast.run.v1"));
+        SessionState.SetString(scope+"run",PlayerPrefs.GetString("blockblast.run.v1",""));
+        PlayerPrefs.DeleteKey("blockblast.run.v1");
         foreach (string key in IntKeys)
         { SessionState.SetBool(scope+key+".present",PlayerPrefs.HasKey(key)); SessionState.SetInt(scope+key,PlayerPrefs.GetInt(key)); }
         SessionState.SetBool(scope+"volume.present",PlayerPrefs.HasKey("blockblast.volume"));
@@ -16,6 +19,8 @@ public static class PreferenceTestScope
     }
     public static void Restore(string scope)
     {
+        if (SessionState.GetBool(scope+"run.present",false)) PlayerPrefs.SetString("blockblast.run.v1",SessionState.GetString(scope+"run",""));
+        else PlayerPrefs.DeleteKey("blockblast.run.v1");
         foreach (string key in IntKeys)
         { if (SessionState.GetBool(scope+key+".present",false)) PlayerPrefs.SetInt(key,SessionState.GetInt(scope+key,0)); else PlayerPrefs.DeleteKey(key); }
         if (SessionState.GetBool(scope+"volume.present",false)) PlayerPrefs.SetFloat("blockblast.volume",SessionState.GetFloat(scope+"volume",0));

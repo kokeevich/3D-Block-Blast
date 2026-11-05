@@ -19,6 +19,16 @@ public class ShapePlacer : MonoBehaviour
     private int pendingCells;
     public int PendingScore(int pointsPerBlock) => pending!=null ? pending.Score(pendingCells,pointsPerBlock) : 0;
 
+    public BoardModel.ClearResult PendingClear => pending;
+    public int PendingCells => pendingCells;
+    public void RestoreBlock(RunSnapshot.Block b)
+    {
+        int v=b.rgba;
+        Color color=new Color32((byte)(v>>24),(byte)(v>>16),(byte)(v>>8),(byte)v);
+        field.PlaceShape(new Vector3Int(b.x,b.y,b.z),new[] { Vector3Int.zero },blockPrefab,
+            blocksParent!=null ? blocksParent : field.transform,color);
+    }
+
     public bool IsResolving => busyClearing;
 
     void Start()
@@ -85,6 +95,7 @@ public class ShapePlacer : MonoBehaviour
         var result = field.GetCompletedLines();
         pending=result; pendingCells=blocks.Count;
         busyClearing = true;
+        if (game!=null) game.SaveSession();
         StartCoroutine(ResolveLinesAndNotify(result, blocks));
     }
 

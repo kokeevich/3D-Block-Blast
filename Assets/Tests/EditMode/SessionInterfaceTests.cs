@@ -26,6 +26,87 @@ public class SessionInterfaceTests
         PreferenceTestScope.Restore("SessionTests.");
     }
 
+    private static RunSnapshot SavedRun() => (RunSnapshot)R("RunSaveStore").GetMethod("Load").Invoke(null,null);
+
+    [UnityTest]
+    public IEnumerator ConfirmedLineClearSurvivesSceneExitDuringAnimationExactlyOnce()
+    {
+        yield return new EnterPlayMode(); PlayerPrefs.SetInt("blockblast.tutorial.completed",1);
+        yield return Load("Game");
+        var selector=Find("BalancedShapeSelector"); var placer=Find("ShapePlacer"); var game=Find("GameManager");
+        Call(selector,"RestoreOffers",new RunSnapshot { catalog=new[] { 0,1,2 },orientation=new[] { 0,0,0 },used=new bool[3] });
+        for (int x=3;x<8;x++) Call(placer,"RestoreBlock",new RunSnapshot.Block { x=x,rgba=unchecked((int)0x12ab45ff) });
+        Call(placer,"RestoreBlock",new RunSnapshot.Block { x=7,y=7,z=7,rgba=unchecked((int)0x123456ff) });
+        Assert.IsTrue((bool)Call(game,"TrySelectOffer",0));
+        Call(Find("ActiveFigureController"),"RestoreGridPosition",Vector3Int.zero);
+        Call(placer,"TryPlaceActive");
+        Assert.IsTrue(Get<bool>(placer,"IsResolving"));
+        var checkpoint=SavedRun(); Assert.IsNotNull(checkpoint);
+        Assert.AreEqual(13,checkpoint.score); Assert.AreEqual(1,checkpoint.moves); Assert.AreEqual(1,checkpoint.lines);
+        Assert.AreEqual(9,checkpoint.peak); Assert.AreEqual(1,checkpoint.blocks.Length); Assert.AreEqual(0,checkpoint.consume);
+        Call(game,"PauseGame"); Call(game,"ReturnToMenu"); yield return WaitForScene("MainMenu"); yield return null;
+        Assert.AreEqual("Продолжить",GameObject.Find("PlayGame").GetComponentInChildren<Text>().text);
+        Click("PlayGame"); yield return WaitForScene("Game"); yield return null; yield return null;
+        game=Find("GameManager"); Assert.AreEqual(13,Get<int>(game,"Score"));
+        Assert.AreEqual(1,Get<RunStatistics>(game,"Statistics").Moves);
+        Assert.AreEqual(511,Get<BoardModel>(Find("Field3D"),"Model").CountFreeCells());
+        Assert.IsFalse((bool)Call(Find("BalancedShapeSelector"),"IsShapeAvailable",0));
+        var restored=SavedRun(); Assert.AreEqual(-1,restored.consume);
+        Assert.AreEqual(unchecked((int)0x123456ff),restored.blocks[0].rgba);
+        ForceGameOver(); yield return null; Assert.IsNull(SavedRun());
+        yield return new ExitPlayMode();
+    }
+
+    [UnityTest]
+    public IEnumerator LastOfferCheckpointGeneratesOneNewSetAndTutorialPreservesIt()
+    {
+        yield return new EnterPlayMode(); PlayerPrefs.SetInt("blockblast.tutorial.completed",1);
+        yield return Load("Game");
+        Call(Find("BalancedShapeSelector"),"RestoreOffers",new RunSnapshot {
+            catalog=new[] { 0,1,2 },orientation=new[] { 0,0,0 },used=new[] { false,true,true } });
+        var game=Find("GameManager"); Assert.IsTrue((bool)Call(game,"TrySelectOffer",0));
+        Call(Find("ShapePlacer"),"TryPlaceActive"); Call(game,"ReturnToMenu");
+        yield return WaitForScene("MainMenu"); yield return null;
+        Click("PlayGame"); yield return WaitForScene("Game"); yield return null; yield return null;
+        var snapshot=SavedRun(); Assert.IsNotNull(snapshot);
+        Assert.AreEqual(1,snapshot.placed); Assert.AreEqual(1,snapshot.moves);
+        CollectionAssert.AreEqual(new bool[3],snapshot.used);
+        Assert.AreEqual(3,snapshot.score); Assert.AreEqual(3,snapshot.blocks.Length);
+        Call(Find("GameManager"),"ReturnToMenu"); yield return WaitForScene("MainMenu"); yield return null;
+        string saved=PlayerPrefs.GetString("blockblast.run.v1");
+        Click("MenuSettings"); yield return null; Click("LearnGame"); yield return WaitForScene("Game"); yield return null; yield return null;
+        Call(Find("GameManager"),"ReturnToMenu"); yield return WaitForScene("MainMenu"); yield return null;
+        Assert.AreEqual(saved,PlayerPrefs.GetString("blockblast.run.v1"));
+        Click("PlayGame"); yield return WaitForScene("Game"); yield return null; yield return null;
+        Call(Find("GameManager"),"RestartGame");
+        int old=SceneManager.GetActiveScene().handle;
+        yield return WaitForReplacement(old,"Game"); yield return null; yield return null;
+        Assert.AreEqual(0,SavedRun().score); Assert.AreEqual(0,SavedRun().blocks.Length);
+        yield return new ExitPlayMode();
+    }
+
+    [UnityTest]
+    public IEnumerator MenuRequiresConfirmationToReplaceSavedRun()
+    {
+        yield return new EnterPlayMode(); PlayerPrefs.SetInt("blockblast.tutorial.completed",1);
+        yield return Load("Game");
+        var game=Find("GameManager"); Assert.IsTrue((bool)Call(game,"TrySelectOffer",0));
+        var actor=Find("ActiveFigureController"); var anchor=Get<Vector3Int>(actor,"CurrentGridPosition");
+        Call(game,"ReturnToMenu"); yield return WaitForScene("MainMenu"); yield return null;
+        var original=SavedRun(); Assert.AreEqual(0,original.selected);
+        Click("NewGame"); yield return null; Click("KeepRun");
+        Assert.AreEqual(original.selected,SavedRun().selected);
+        Click("PlayGame"); yield return WaitForScene("Game"); yield return null; yield return null;
+        Assert.IsTrue(Get<bool>(Find("ActiveFigureController"),"HasActiveFigure"));
+        Assert.AreEqual(anchor,Get<Vector3Int>(Find("ActiveFigureController"),"CurrentGridPosition"));
+        Call(Find("GameManager"),"ReturnToMenu"); yield return WaitForScene("MainMenu"); yield return null;
+        Click("NewGame"); yield return null; Click("ConfirmNewRun"); yield return WaitForScene("Game"); yield return null; yield return null;
+        Assert.AreEqual(0,Get<int>(Find("GameManager"),"Score"));
+        Assert.IsFalse(Get<bool>(Find("ActiveFigureController"),"HasActiveFigure"));
+        Assert.AreEqual(-1,SavedRun().selected);
+        yield return new ExitPlayMode();
+    }
+
     [UnityTest]
     public IEnumerator RotationSettingPersistsAndFreeOrbitSnapsBackToAxes()
     {

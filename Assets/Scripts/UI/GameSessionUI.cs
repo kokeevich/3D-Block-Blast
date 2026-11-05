@@ -44,7 +44,7 @@ public class GameSessionUI : MonoBehaviour
     private void ShowConfirmation(bool again)
     {
         restart=again; confirmationTitle.text=again ? "Начать заново?" : "Вернуться в меню?";
-        confirmationText.text="Текущая партия завершится.\nВаш рекорд сохранится.";
+        confirmationText.text=again ? "Текущая партия завершится.\nВаш рекорд сохранится." : "Партия сохранится.\nВы сможете продолжить её позже.";
         confirmButton.GetComponentInChildren<UnityEngine.UI.Text>().text=again ? "Новая партия" : "В меню";
         confirm.SetActive(true); confirm.transform.SetAsLastSibling();
     }

@@ -19,7 +19,7 @@ public class GameManager : MonoBehaviour
     private readonly SessionFlow session=new SessionFlow();
     private GameSessionUI sessionUI;
     private float timeBeforePause=1;
-    private bool ownsPause,initialized;
+    private bool ownsPause,initialized,practice,discardSave,restoring;
     public TutorialProgress Tutorial { get; } = new TutorialProgress();
     public int LastClearedLines { get; private set; }
     public float LastMoveAt { get; private set; } = -100;
@@ -34,7 +34,8 @@ public class GameManager : MonoBehaviour
         initialized=true;
         Time.timeScale=1; AudioListener.pause=false; GamePreferences.ApplyAudio();
         bestScore=GamePreferences.BestScore;
-        if (GameLaunch.ConsumeTutorialRequest() || !GamePreferences.TutorialCompleted) Tutorial.Start();
+        practice=GameLaunch.ConsumeTutorialRequest();
+        if (practice || !GamePreferences.TutorialCompleted) Tutorial.Start();
 
         if (field == null) field = FindObjectOfType<Field3D>();
         if (field != null) fieldRotator=field.GetComponent<FieldRotator>();
@@ -93,6 +94,7 @@ public class GameManager : MonoBehaviour
         // Активная фигура уже была LockActiveFigure в ShapePlacer, она больше не нужна
         if (activeFigureController != null)
             activeFigureController.ClearActiveFigure();
+        SaveSession();
     }
 
     private int lastSpawnedButtonIndex = -1;
@@ -108,7 +110,9 @@ public class GameManager : MonoBehaviour
     void HandleGameOver()
     {
         if (session.GameOver || Transitioning) return;
-        session.EndGame(); ReleasePause(); PersistProgress();
+        session.EndGame();
+        if (!practice) RunSaveStore.Clear();
+        ReleasePause(); PersistProgress();
     }
 
     public bool TrySelectOffer(int index)
@@ -163,6 +167,7 @@ public class GameManager : MonoBehaviour
     {
         int committed=score+(shapePlacer!=null ? shapePlacer.PendingScore(cellsPerBlock) : 0);
         bestScore=Mathf.Max(bestScore,committed); GamePreferences.RecordBest(bestScore); GamePreferences.Save();
+        SaveSession();
     }
     private void Update()
     { if (Input.GetKeyDown(KeyCode.Escape) && !Transitioning && sessionUI!=null) sessionUI.HandleBack(); }
@@ -177,13 +182,86 @@ public class GameManager : MonoBehaviour
         if (shapePlacer != null) shapePlacer.OnShapePlaced -= HandleShapePlaced;
         PersistProgress(); ReleasePause();
     }
-    public void RestartGame() { LoadScene("Game"); }
+    public void RestartGame()
+    {
+        if (Transitioning) return;
+        discardSave=true; if (!practice) RunSaveStore.Clear();
+        GameLaunch.RequestTutorial(practice); LoadScene("Game");
+    }
     public void ReturnToMenu() { LoadScene("MainMenu"); }
     private void LoadScene(string name)
     {
+        if (Transitioning) return;
+        PersistProgress();
         if (!session.TryBeginTransition()) return;
-        PersistProgress(); ReleasePause();
+        ReleasePause();
         Time.timeScale=1; SceneManager.LoadSceneAsync(name);
+    }
+
+    public void SaveSession()
+    {
+        if (!initialized || practice || discardSave || restoring || IsGameOver || Transitioning ||
+            field==null || shapeSelector==null || !shapeSelector.HasOffers) return;
+        var pending=shapePlacer!=null ? shapePlacer.PendingClear : null;
+        var snapshot=new RunSnapshot { score=score+(pending!=null ? shapePlacer.PendingScore(cellsPerBlock) : 0),
+            moves=Statistics.Moves+(pending!=null ? 1 : 0), lines=Statistics.Lines+(pending!=null ? pending.LinesCleared : 0),
+            peak=Statistics.PeakOccupied, consume=pending!=null ? lastSpawnedButtonIndex : -1,
+            tutorial=(int)Tutorial.Current };
+        shapeSelector.CaptureOffers(snapshot);
+        var removed=pending!=null ? new System.Collections.Generic.HashSet<BoardModel.Cell>(pending.Cells) : null;
+        var blocks=new System.Collections.Generic.List<RunSnapshot.Block>();
+        for (int x=0;x<Field3D.Size;x++) for (int y=0;y<Field3D.Size;y++) for (int z=0;z<Field3D.Size;z++)
+        {
+            if (!field.IsOccupied(x,y,z) || (removed!=null && removed.Contains(new BoardModel.Cell(x,y,z)))) continue;
+            Color32 c=field.CellColor(x,y,z);
+            blocks.Add(new RunSnapshot.Block { x=x,y=y,z=z,rgba=(c.r<<24)|(c.g<<16)|(c.b<<8)|c.a });
+        }
+        snapshot.blocks=blocks.ToArray();
+        snapshot.peak=Mathf.Max(snapshot.peak,blocks.Count+(pending!=null ? pending.Cells.Count : 0));
+        if (pending!=null && Tutorial.Current==TutorialProgress.Step.PlaceShape) snapshot.tutorial=(int)TutorialProgress.Step.Complete;
+        if (pending==null && activeFigureController!=null && activeFigureController.HasActiveFigure)
+        {
+            snapshot.selected=lastSpawnedButtonIndex;
+            var anchor=activeFigureController.CurrentGridPosition;
+            snapshot.anchorX=anchor.x; snapshot.anchorY=anchor.y; snapshot.anchorZ=anchor.z;
+        }
+        Quaternion q=field.transform.rotation; snapshot.rotation=new[] { q.x,q.y,q.z,q.w };
+        var camera=Camera.main;
+        if (camera==null) return;
+        snapshot.distance=Vector3.Distance(camera.transform.position,field.transform.position); snapshot.ortho=camera.orthographicSize;
+        GamePreferences.RecordBest(snapshot.score);
+        RunSaveStore.Save(snapshot);
+    }
+
+    // Called by the selector after every Start has bound its references and set up the camera.
+    public bool TryRestoreSession()
+    {
+        if (practice || discardSave) return false;
+        var snapshot=RunSaveStore.Load();
+        if (snapshot==null) return false;
+        restoring=true;
+        try
+        {
+            score=snapshot.score; bestScore=Mathf.Max(bestScore,score); GamePreferences.RecordBest(bestScore);
+            Statistics.Restore(snapshot.moves,snapshot.lines,snapshot.peak);
+            Tutorial.Restore(snapshot.tutorial);
+            if (Tutorial.Current==TutorialProgress.Step.Complete) GamePreferences.CompleteTutorial();
+            Quaternion q=new Quaternion(snapshot.rotation[0],snapshot.rotation[1],snapshot.rotation[2],snapshot.rotation[3]);
+            if (fieldRotator!=null) fieldRotator.RestoreRotation(q); else field.transform.rotation=q;
+            var camera=Camera.main;
+            if (camera!=null)
+            {
+                Vector3 offset=camera.transform.position-field.transform.position;
+                camera.transform.position=field.transform.position+offset.normalized*snapshot.distance;
+                camera.orthographicSize=snapshot.ortho;
+            }
+            foreach (var block in snapshot.blocks) shapePlacer.RestoreBlock(block);
+            shapeSelector.RestoreOffers(snapshot);
+            if (!IsGameOver && snapshot.selected>=0 && TrySelectOffer(snapshot.selected))
+                activeFigureController.RestoreGridPosition(new Vector3Int(snapshot.anchorX,snapshot.anchorY,snapshot.anchorZ));
+        }
+        finally { restoring=false; }
+        SaveSession(); return true;
     }
 
     public int Score => score;

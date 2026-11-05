@@ -32,6 +32,9 @@ public class Field3D : MonoBehaviour
     // Каждая клетка хранит либо null (пусто), либо ссылку на трансформ блока.
     private Transform[,,] cells = new Transform[Size, Size, Size];
 
+    private readonly Color[,,] colors=new Color[Size,Size,Size];
+    public Color CellColor(int x,int y,int z) => colors[x,y,z];
+
     private readonly BoardModel board = new BoardModel();
 
     public event Action<Plane> OnPlaneCleared;
@@ -150,6 +153,7 @@ public class Field3D : MonoBehaviour
                 }
             }
 
+            colors[x,y,z]=color;
             SetCell(x, y, z, block.transform);
             created.Add(block);
         }

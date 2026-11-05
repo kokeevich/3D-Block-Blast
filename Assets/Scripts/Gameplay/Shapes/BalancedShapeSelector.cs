@@ -43,7 +43,31 @@ public class BalancedShapeSelector : MonoBehaviour
         yield return null;
         if (field == null) field = FindObjectOfType<Field3D>();
         if (activeFigureController == null) activeFigureController = FindObjectOfType<ActiveFigureController>();
+        var manager=FindObjectOfType<GameManager>();
+        if (manager!=null && manager.TryRestoreSession()) yield break;
         GenerateThreeShapes(field != null ? field.CountFreeCells() : 512);
+        if (manager!=null) manager.SaveSession();
+    }
+
+    public void CaptureOffers(RunSnapshot snapshot)
+    {
+        snapshot.catalog=new int[OfferCount]; snapshot.orientation=new int[OfferCount];
+        snapshot.used=(bool[])used.Clone(); snapshot.placed=PlacedShapes;
+        for (int i=0;i<OfferCount;i++)
+        { snapshot.catalog[i]=assignedShapes[i].offer.CatalogIndex; snapshot.orientation[i]=assignedShapes[i].offer.Orientation; }
+    }
+    public bool HasOffers => assignedShapes!=null && used!=null;
+    public void RestoreOffers(RunSnapshot snapshot)
+    {
+        assignedShapes=new ShapeInstanceData[OfferCount]; used=(bool[])snapshot.used.Clone(); PlacedShapes=snapshot.placed;
+        for (int i=0;i<OfferCount;i++)
+        {
+            assignedShapes[i]=FromOffer(new ShapeOffer(snapshot.catalog[i],BalanceRules.Catalog[snapshot.catalog[i]].Cells,snapshot.orientation[i]));
+            assignedShapes[i].color=OfferColor(i); assignedShapes[i].onRotationChanged=() => OnOfferChanged?.Invoke();
+        }
+        if (snapshot.consume>=0) UseShape(snapshot.consume);
+        else if (!AnyRemainingShapeCanBePlaced()) OnNoValidPlacement?.Invoke();
+        OnOfferChanged?.Invoke();
     }
 
     private ShapeInstanceData FromOffer(ShapeOffer offer)

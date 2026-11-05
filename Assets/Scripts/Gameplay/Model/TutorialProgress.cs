@@ -9,6 +9,7 @@ public sealed class TutorialProgress
     public bool CanManipulate => !Active || Current>=Step.MoveShape;
     public bool CanPlace => !Active || Current==Step.PlaceShape;
     public int Number => Active && !IsIntro ? (int)Current-1 : 0;
+    public void Restore(int step) { Current=(Step)step; }
     public void Start() { Current=Step.Intro; }
     public void Begin() { if (IsIntro) Current=Step.RotateBoard; }
     public void Skip() { Current=Step.Off; }

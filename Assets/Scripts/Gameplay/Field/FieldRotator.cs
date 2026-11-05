@@ -184,6 +184,9 @@ public class FieldRotator : MonoBehaviour
         rotationTime=0; IsRotating=true;
     }
 
+    public void RestoreRotation(Quaternion value)
+    { transform.rotation=value; if (!GamePreferences.FreeRotation) SnapToGrid(); }
+
     public void RefreshZoomLimits()
     {
         if (view == null) view = Camera.main;
