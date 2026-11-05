@@ -6,13 +6,13 @@
 
 | Раздел Player Settings | Изображение |
 | --- | --- |
-| Default Icon | `Assets/AppIcon/BlockBlastIcon.png` |
-| Android → Icon → Legacy, все размеры | `BlockBlastIcon.png` |
+| Default Icon | `Assets/AppIcon/BlockBlastIconV2.png` |
+| Android → Icon → Legacy, все размеры | `BlockBlastIconV2.png` |
 | Android → Icon → Round, все размеры | `BlockBlastRound.png` — круг с прозрачными углами |
 | Android → Icon → Adaptive → Background, все размеры | `BlockBlastAdaptiveBackground.png` — непрозрачный фон на весь холст |
 | Android → Icon → Adaptive → Foreground, все размеры | `BlockBlastAdaptiveForeground.png` — эмблема с прозрачными полями |
 
-Все исходники — квадратные PNG 1254 × 1254. Unity создаёт необходимые размеры при сборке. Foreground и Round импортируются с прозрачностью, текстуры без mipmaps и сжатия. Существующий GUID Default/Legacy сохранён.
+Все исходники — квадратные PNG 1254 × 1254. Unity создаёт необходимые размеры при сборке. Foreground и Round импортируются с прозрачностью, текстуры без mipmaps и сжатия. Для Default/Legacy создано новое имя и новый GUID, чтобы отличать новую иконку от ранее импортированной.
 
 ## Почему раньше был квадрат внутри белого круга
 
@@ -23,9 +23,10 @@
 ## Как проверить на Pixel
 
 1. Обновите проект из GitHub и дождитесь импорта изображений в Unity.
-2. Откройте **Edit → Project Settings → Player → Android → Icon**. Проверьте назначенные **Adaptive**, **Round** и **Legacy**. В Adaptive должны быть два разных изображения: фон и передний план.
-3. Соберите новый APK: **Tools → Block Blast → Build Android Development APK**, либо обычным **File → Build Settings → Android → Build**.
-4. Установите APK поверх предыдущей версии, чтобы сохранить текущую партию и рекорд. Проверьте значок в списке приложений и на рабочем столе.
-5. Если launcher удерживает старую картинку, удалите только ярлык с рабочего стола и добавьте его снова либо перезапустите телефон. Не удаляйте само приложение ради обновления значка: это удалит локальные данные игры.
+2. Выберите Android в **File → Build Settings** и нажмите **Switch Platform**, затем выполните **Tools → Block Blast → Apply New App Icon**. Команда принудительно переимпортирует четыре новых PNG и назначит их через API Unity; она также автоматически вызывается перед Android-сборкой. Если файлов нет, Console укажет, что нужно обновить всю папку `Assets/AppIcon` вместе с `.meta`.
+3. Откройте **Edit → Project Settings → Player → Android → Icon**. Проверьте назначенные **Adaptive**, **Round** и **Legacy**. В Adaptive должны быть два разных изображения: фон и передний план.
+4. Соберите новый APK: **Tools → Block Blast → Build Android Development APK**, либо обычным **File → Build Settings → Android → Build**.
+5. Установите APK поверх предыдущей версии, чтобы сохранить текущую партию и рекорд. Проверьте значок в списке приложений и на рабочем столе.
+6. Если launcher удерживает старую картинку, удалите только ярлык с рабочего стола и добавьте его снова либо перезапустите телефон. Не удаляйте само приложение ради обновления значка: это удалит локальные данные игры.
 
 PNG и ссылки на все 18 Android-слотов проверены. Новая сборка APK и фактический вид в Pixel Launcher требуют проверки на телефоне: в облаке нет активированного Unity и Android Build Support. Круглый PNG — отдельный fallback, а не скриншот результата на устройстве.
